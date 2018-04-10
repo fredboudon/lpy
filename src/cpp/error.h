@@ -33,7 +33,6 @@
 
 #include "lpy_config.h"
 #include <string>
-#include <functional>
 #include <plantgl/python/exception.h>
 
 
@@ -41,9 +40,11 @@ LPY_BEGIN_NAMESPACE
 
 /*---------------------------------------------------------------------------*/
 
-LPY_API void SetLsysErrorCallback(const std::function<void(const std::string &)> &callback);
+typedef void (*PrintCallbackType)(const std::string &);
 
-LPY_API void SetLsysWarningCallback(const std::function<void(const std::string &)> &callback);
+LPY_API void SetLsysErrorCallback(PrintCallbackType callback);
+
+LPY_API void SetLsysWarningCallback(PrintCallbackType callback);
 
 LPY_API void LsysError(const std::string& error);
 
