@@ -41,318 +41,367 @@ LPY_BEGIN_NAMESPACE
 
 /*---------------------------------------------------------------------------*/
 
-AxialTree::AxialTree():
-  BaseType()
-{ IncTracker(AxialTree) }
+AxialTree::AxialTree() : BaseType(){IncTracker(AxialTree)}
 
-AxialTree::AxialTree(const AxialTree& m):
-  BaseType(m)
-  { IncTracker(AxialTree) }
+                         AxialTree::AxialTree(const AxialTree &m) : BaseType(m){IncTracker(AxialTree)}
 
- AxialTree::AxialTree(const std::string& s):
-  BaseType()
-{ 
+                                                                    AxialTree::AxialTree(const std::string &s) : BaseType()
+{
   IncTracker(AxialTree)
-  std::vector<std::pair<size_t,std::string> > parsedstring = LpyParsing::parselstring(s);
+      std::vector<std::pair<size_t, std::string>>
+          parsedstring = LpyParsing::parselstring(s);
 
-  reserve(size()+parsedstring.size());
-  for(std::vector<std::pair<size_t,std::string> >::const_iterator it = parsedstring.begin();
-	  it != parsedstring.end(); ++it){
-		__string().push_back(ParamModule(it->first,it->second));
-  }
-}
-
-AxialTree::AxialTree(const ParamModule& m):
-   BaseType(m)
-{ IncTracker(AxialTree) }
-
-AxialTree::AxialTree(const boost::python::list& l):
-  BaseType(){
-  IncTracker(AxialTree) 
-  PySeqIterator iter_obj ( l );
-  
-  while(iter_obj.is_valid())
+  reserve(size() + parsedstring.size());
+  for (std::vector<std::pair<size_t, std::string>>::const_iterator it = parsedstring.begin();
+       it != parsedstring.end(); ++it)
   {
-        object obj = iter_obj.next();
+    __string().push_back(ParamModule(it->first, it->second));
+  }
+}
 
-        extract<size_t> idext(obj);
-		if (idext.check()){
-			__string().push_back(ParamModule(idext()));
-        }
-		else {
-			extract<std::string> st(obj);
-			if(st.check())
-				operator+=(AxialTree(st()));
-			else {
-				extract<tuple> tu(obj);
-				if(tu.check())
-					__string().push_back(ParamModule(tu()));
-				else {
-					extract<AxialTree> ax(obj);
-					if(ax.check()) operator+=(ax());
-					else __string().push_back(extract<ParamModule>(obj)());
-				}
-			}
-        }
+AxialTree::AxialTree(const ParamModule &m) : BaseType(m){IncTracker(AxialTree)}
+
+                                             AxialTree::AxialTree(const boost::python::list &l) : BaseType()
+{
+  IncTracker(AxialTree)
+      PySeqIterator iter_obj(l);
+
+  while (iter_obj.is_valid())
+  {
+    object obj = iter_obj.next();
+
+    extract<size_t> idext(obj);
+    if (idext.check())
+    {
+      __string().push_back(ParamModule(idext()));
     }
+    else
+    {
+      extract<std::string> st(obj);
+      if (st.check())
+        operator+=(AxialTree(st()));
+      else
+      {
+        extract<tuple> tu(obj);
+        if (tu.check())
+          __string().push_back(ParamModule(tu()));
+        else
+        {
+          extract<AxialTree> ax(obj);
+          if (ax.check())
+            operator+=(ax());
+          else
+            __string().push_back(extract<ParamModule>(obj)());
+        }
+      }
+    }
+  }
 }
 
-AxialTree::AxialTree(const boost::python::tuple& t):
-  BaseType(ParamModule(t))
+AxialTree::AxialTree(const boost::python::tuple &t) : BaseType(ParamModule(t)){
+                                                          IncTracker(AxialTree)}
+
+                                                      AxialTree::AxialTree(const_iterator beg, const_iterator end) : BaseType(beg, end){IncTracker(AxialTree)}
+
+                                                                                                                     AxialTree::~AxialTree(){DecTracker(AxialTree)}
+
+                                                                                                                     std::string AxialTree::str_slice(const_iterator beg, const_iterator end) const
 {
-	IncTracker(AxialTree) 
-}
-
-AxialTree::AxialTree(const_iterator beg, const_iterator end):
-  BaseType(beg,end)
-{
-	IncTracker(AxialTree) 
-}
-
-AxialTree::~AxialTree()
-{
-	DecTracker(AxialTree) 
-}
-
-std::string AxialTree::str_slice(const_iterator beg, const_iterator end) const{
   std::string str;
-  for(ModuleList::const_iterator _it = beg; _it != end; _it++)
-		 str += _it->str();
+  for (ModuleList::const_iterator _it = beg; _it != end; _it++)
+    str += _it->str();
   return str;
 }
 
-std::string AxialTree::repr() const{
+std::string AxialTree::repr() const
+{
   std::string str = "AxialTree(";
-  for(ModuleList::const_iterator _it = const_begin();
-	  _it != const_end(); _it++)
-		 str += _it->repr();
-  str +=')';
+  for (ModuleList::const_iterator _it = const_begin();
+       _it != const_end(); _it++)
+    str += _it->repr();
+  str += ')';
   return str;
 }
+/*
+str AxialTree::repr_python() const {
+    list python_str = ["AxialTree"]
+
+}
+*/
 
 size_t
-AxialTree::count(const std::string& name) const{
+AxialTree::count(const std::string &name) const
+{
   size_t c = 0;
-  for(ModuleList::const_iterator _it = const_begin();
-	  _it != const_end(); _it++)
-		 if (_it->name() == name )
-		   c++;
+  for (ModuleList::const_iterator _it = const_begin();
+       _it != const_end(); _it++)
+    if (_it->name() == name)
+      c++;
   return c;
 }
 
 size_t
-AxialTree::count(const std::string& name, size_t nbparam) const{
+AxialTree::count(const std::string &name, size_t nbparam) const
+{
   size_t c = 0;
-  for(ModuleList::const_iterator _it = const_begin();
-	  _it != const_end(); _it++)
-		 if (_it->name() == name && _it->argSize() == nbparam)
-		   c++;
+  for (ModuleList::const_iterator _it = const_begin();
+       _it != const_end(); _it++)
+    if (_it->name() == name && _it->argSize() == nbparam)
+      c++;
   return c;
 }
 
 size_t
-AxialTree::count(const ParamModule& module) const{
-  return count(module.name(),module.argSize());
+AxialTree::count(const ParamModule &module) const
+{
+  return count(module.name(), module.argSize());
 }
 
-AxialTree::const_iterator 
-AxialTree::find(const std::string& name, size_t nbparam, 
-				const_iterator start, 
-				const_iterator stop) const
-{ 
-  const_iterator _it = start;
-  while(_it != stop && (_it->name() != name || _it->argSize() != nbparam))++_it; 
-  if(_it == stop)return end(); 
-  else return _it;
-}
-
-AxialTree::const_iterator 
-AxialTree::find(const PatternString& modules, 
-				const_iterator start,
-				const_iterator stop) const
+AxialTree::const_iterator
+AxialTree::find(const std::string &name, size_t nbparam,
+                const_iterator start,
+                const_iterator stop) const
 {
   const_iterator _it = start;
-  while(_it != stop && !match(modules,_it))++_it; 
-  if(_it == stop)return end(); 
-  else return _it;
+  while (_it != stop && (_it->name() != name || _it->argSize() != nbparam))
+    ++_it;
+  if (_it == stop)
+    return end();
+  else
+    return _it;
 }
 
-AxialTree::const_iterator 
-AxialTree::find(const std::string& name, 
-				const_iterator start, 
-				const_iterator stop) const
-{ 
+AxialTree::const_iterator
+AxialTree::find(const PatternString &modules,
+                const_iterator start,
+                const_iterator stop) const
+{
   const_iterator _it = start;
-  while(_it != stop && _it->name() != name)++_it; 
-  if(_it == stop)return end(); 
-  else return _it;
+  while (_it != stop && !match(modules, _it))
+    ++_it;
+  if (_it == stop)
+    return end();
+  else
+    return _it;
 }
 
-AxialTree 
-AxialTree::replace(const PatternModule& i, const ParamModule& j) const{
+AxialTree::const_iterator
+AxialTree::find(const std::string &name,
+                const_iterator start,
+                const_iterator stop) const
+{
+  const_iterator _it = start;
+  while (_it != stop && _it->name() != name)
+    ++_it;
+  if (_it == stop)
+    return end();
+  else
+    return _it;
+}
+
+AxialTree
+AxialTree::replace(const PatternModule &i, const ParamModule &j) const
+{
   AxialTree dest;
   const_iterator _it = const_begin();
   const_iterator _it2 = _it;
-  while(!isEnd(_it2)){
-	while(!isEnd(_it2) && !match(i,_it2))++_it2;
-	dest.push_back(_it,_it2);
-	if(!isEnd(_it2)){
-	  dest += j;
-	  ++_it2;
-	  _it = _it2;
-	}
+  while (!isEnd(_it2))
+  {
+    while (!isEnd(_it2) && !match(i, _it2))
+      ++_it2;
+    dest.push_back(_it, _it2);
+    if (!isEnd(_it2))
+    {
+      dest += j;
+      ++_it2;
+      _it = _it2;
+    }
   }
   return dest;
 }
 
-AxialTree 
-AxialTree::replace(const PatternModule& i, const AxialTree& j) const{
+AxialTree
+AxialTree::replace(const PatternModule &i, const AxialTree &j) const
+{
   AxialTree dest;
   const_iterator _it = const_begin();
   const_iterator _it2 = _it;
-  while(!isEnd(_it2)){
-	while(!isEnd(_it2) && !match(i,_it2))++_it2;
-	dest.push_back(_it,_it2);
-	if(!isEnd(_it2)){
-	  dest += j;
-	  ++_it2;
-	  _it = _it2;
-	}
+  while (!isEnd(_it2))
+  {
+    while (!isEnd(_it2) && !match(i, _it2))
+      ++_it2;
+    dest.push_back(_it, _it2);
+    if (!isEnd(_it2))
+    {
+      dest += j;
+      ++_it2;
+      _it = _it2;
+    }
   }
   return dest;
 }
 
-AxialTree 
-AxialTree::replace(const PatternString& i, const AxialTree& j) const{
+AxialTree
+AxialTree::replace(const PatternString &i, const AxialTree &j) const
+{
   AxialTree dest;
   const_iterator _it = const_begin();
   const_iterator _it2 = _it;
   const_iterator _it3 = _it;
-  while(!isEnd(_it2)){
-	while(!isEnd(_it2) && !match(i,_it2,_it3))++_it2;
-	dest.push_back(_it,_it2);
-	if(!isEnd(_it2)){
-	  dest += j;
-	  _it2 = _it3;
-	  _it = _it2;
-	}
+  while (!isEnd(_it2))
+  {
+    while (!isEnd(_it2) && !match(i, _it2, _it3))
+      ++_it2;
+    dest.push_back(_it, _it2);
+    if (!isEnd(_it2))
+    {
+      dest += j;
+      _it2 = _it3;
+      _it = _it2;
+    }
   }
   return dest;
 }
 
-
-bool AxialTree::match(const PatternString& pattern, 
-					  AxialTree::const_iterator it,
-					  AxialTree::const_iterator& resultingpos,
-					  AxialTree::const_iterator& last_matched,
-					  ArgList& params,
+bool AxialTree::match(const PatternString &pattern,
+                      AxialTree::const_iterator it,
+                      AxialTree::const_iterator &resultingpos,
+                      AxialTree::const_iterator &last_matched,
+                      ArgList &params,
                       const ConsiderFilterPtr filter) const
-{ 
-	return MatchingEngine::match(it,const_begin(),const_end(),pattern.const_begin(),pattern.const_end(),resultingpos,last_matched,filter, params);
+{
+  return MatchingEngine::match(it, const_begin(), const_end(), pattern.const_begin(), pattern.const_end(), resultingpos, last_matched, filter, params);
 }
 
-bool AxialTree::reverse_match(const PatternString& pattern, 
-					          AxialTree::const_iterator it,
+bool AxialTree::reverse_match(const PatternString &pattern,
+                              AxialTree::const_iterator it,
                               const ConsiderFilterPtr filter) const
-{ AxialTree::const_iterator res; return reverse_match(pattern,it,res, filter); }
+{
+  AxialTree::const_iterator res;
+  return reverse_match(pattern, it, res, filter);
+}
 
-bool AxialTree::reverse_match(const PatternString& pattern, 
-					          AxialTree::const_iterator it,
-					          AxialTree::const_iterator& resultingpos,
+bool AxialTree::reverse_match(const PatternString &pattern,
+                              AxialTree::const_iterator it,
+                              AxialTree::const_iterator &resultingpos,
                               const ConsiderFilterPtr filter) const
-{ 
+{
   ArgList params;
-  if (isEnd(it)) return false;
-  return MatchingEngine::reverse_match(it,begin(),end(),pattern.const_rbegin(),pattern.const_rend(),resultingpos,filter,params);
+  if (isEnd(it))
+    return false;
+  return MatchingEngine::reverse_match(it, begin(), end(), pattern.const_rbegin(), pattern.const_rend(), resultingpos, filter, params);
 }
 
-
-bool AxialTree::reverse_match(const PatternString& pattern, 
-					  AxialTree::const_iterator it,
-					  AxialTree::const_iterator& resultingpos,
-					  ArgList& params,
-                      const ConsiderFilterPtr filter) const
-{ 
-  if (isEnd(it)) return false;
-  return MatchingEngine::reverse_match(it,begin(),end(),pattern.const_rbegin(),pattern.const_rend(),resultingpos,filter,params);
+bool AxialTree::reverse_match(const PatternString &pattern,
+                              AxialTree::const_iterator it,
+                              AxialTree::const_iterator &resultingpos,
+                              ArgList &params,
+                              const ConsiderFilterPtr filter) const
+{
+  if (isEnd(it))
+    return false;
+  return MatchingEngine::reverse_match(it, begin(), end(), pattern.const_rbegin(), pattern.const_rend(), resultingpos, filter, params);
 }
- 
-bool AxialTree::rightmatch(const PatternString& pattern, 
-						   AxialTree::const_iterator it,
+
+bool AxialTree::rightmatch(const PatternString &pattern,
+                           AxialTree::const_iterator it,
                            const ConsiderFilterPtr filter) const
-{ AxialTree::const_iterator res; return rightmatch(pattern,it,res,filter); }
+{
+  AxialTree::const_iterator res;
+  return rightmatch(pattern, it, res, filter);
+}
 
-bool AxialTree::rightmatch(const PatternString& pattern, 
-						   AxialTree::const_iterator it,
-						   AxialTree::const_iterator& resultingpos,
-                           const ConsiderFilterPtr filter) const{
+bool AxialTree::rightmatch(const PatternString &pattern,
+                           AxialTree::const_iterator it,
+                           AxialTree::const_iterator &resultingpos,
+                           const ConsiderFilterPtr filter) const
+{
   ArgList params;
-  return rightmatch(pattern,it,resultingpos,params,filter);
+  return rightmatch(pattern, it, resultingpos, params, filter);
 }
 
-bool AxialTree::rightmatch(const PatternString& pattern, 
-						   AxialTree::const_iterator it,
-						   AxialTree::const_iterator& resultingpos,
-						   ArgList& params,
-                           const ConsiderFilterPtr filter) const{
-  return rightmatch(pattern,it,it,resultingpos,params,filter);
+bool AxialTree::rightmatch(const PatternString &pattern,
+                           AxialTree::const_iterator it,
+                           AxialTree::const_iterator &resultingpos,
+                           ArgList &params,
+                           const ConsiderFilterPtr filter) const
+{
+  return rightmatch(pattern, it, it, resultingpos, params, filter);
 }
 
-bool AxialTree::rightmatch(const PatternString& pattern, 
-						   AxialTree::const_iterator it,
-						   AxialTree::const_iterator last_matched,
-						   AxialTree::const_iterator& resultingpos,
-						   ArgList& params,
-                           const ConsiderFilterPtr filter) const{
-  if(pattern.empty())return true;
-  return MatchingEngine::right_match(it,const_begin(),const_end(),pattern.const_begin(),pattern.const_end(),last_matched, resultingpos, filter, params);
+bool AxialTree::rightmatch(const PatternString &pattern,
+                           AxialTree::const_iterator it,
+                           AxialTree::const_iterator last_matched,
+                           AxialTree::const_iterator &resultingpos,
+                           ArgList &params,
+                           const ConsiderFilterPtr filter) const
+{
+  if (pattern.empty())
+    return true;
+  return MatchingEngine::right_match(it, const_begin(), const_end(), pattern.const_begin(), pattern.const_end(), last_matched, resultingpos, filter, params);
 }
 
 AxialTree::const_iterator
-AxialTree::rightfind(const PatternString& a,
-				 const_iterator start,
-				 const_iterator stop) const {
-  if(a.empty())return start;
+AxialTree::rightfind(const PatternString &a,
+                     const_iterator start,
+                     const_iterator stop) const
+{
+  if (a.empty())
+    return start;
   const_iterator _it = start;
-  while(_it != stop && !rightmatch(a,_it))++_it; 
-  if(_it == stop)return end(); 
-  else return _it;
+  while (_it != stop && !rightmatch(a, _it))
+    ++_it;
+  if (_it == stop)
+    return end();
+  else
+    return _it;
 }
 
-bool AxialTree::leftmatch(const PatternString& pattern, 
-						  AxialTree::const_iterator it,
-						  AxialTree::const_iterator& resultingpos,
-						  ArgList& params,
-                          const ConsiderFilterPtr filter) const{
-  if(pattern.empty())return true;
-  return MatchingEngine::left_match(it,const_begin(),const_end(),pattern.const_rbegin(),pattern.const_rend(),resultingpos,filter,params);
+bool AxialTree::leftmatch(const PatternString &pattern,
+                          AxialTree::const_iterator it,
+                          AxialTree::const_iterator &resultingpos,
+                          ArgList &params,
+                          const ConsiderFilterPtr filter) const
+{
+  if (pattern.empty())
+    return true;
+  return MatchingEngine::left_match(it, const_begin(), const_end(), pattern.const_rbegin(), pattern.const_rend(), resultingpos, filter, params);
 }
 
-bool AxialTree::leftmatch(const PatternString& pattern, 
-						  AxialTree::const_iterator it,
-						  AxialTree::const_iterator& resultingpos,
-                          const ConsiderFilterPtr filter) const{
+bool AxialTree::leftmatch(const PatternString &pattern,
+                          AxialTree::const_iterator it,
+                          AxialTree::const_iterator &resultingpos,
+                          const ConsiderFilterPtr filter) const
+{
 
-  if(pattern.empty())return true;
+  if (pattern.empty())
+    return true;
   ArgList params;
-  return MatchingEngine::left_match(it,const_begin(),const_end(),pattern.const_rbegin(),pattern.const_rend(),resultingpos,filter,params);
+  return MatchingEngine::left_match(it, const_begin(), const_end(), pattern.const_rbegin(), pattern.const_rend(), resultingpos, filter, params);
 }
 
-bool AxialTree::leftmatch(const PatternString& a, AxialTree::const_iterator it,
-                           const ConsiderFilterPtr filter) const
-{ AxialTree::const_iterator res; return leftmatch(a,it,res,filter); }
+bool AxialTree::leftmatch(const PatternString &a, AxialTree::const_iterator it,
+                          const ConsiderFilterPtr filter) const
+{
+  AxialTree::const_iterator res;
+  return leftmatch(a, it, res, filter);
+}
 
 AxialTree::const_iterator
-AxialTree::leftfind(const PatternString& a,
-					const_iterator start,
-					const_iterator stop) const {
-  if(a.empty())return stop;
+AxialTree::leftfind(const PatternString &a,
+                    const_iterator start,
+                    const_iterator stop) const
+{
+  if (a.empty())
+    return stop;
   const_iterator _it = stop;
   bool b = false;
-  while(_it != start && !(b = leftmatch(a,_it)))++_it; 
-  if(_it == start && !b)return end(); 
-  else return _it;
+  while (_it != start && !(b = leftmatch(a, _it)))
+    ++_it;
+  if (_it == start && !b)
+    return end();
+  else
+    return _it;
 }
-
 
 LPY_END_NAMESPACE

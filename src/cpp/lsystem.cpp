@@ -891,6 +891,7 @@ Lsystem::__step(AxialTree &workingstring,
     return __parallelStep(workingstring, ruleset, query, matching, direction);
   }
   */
+
   ContextMaintainer c(&__context);
   matching = false;
   if (workingstring.empty())
@@ -1008,10 +1009,10 @@ Lsystem::__step(AxialTree &workingstring,
 #endif
 
 AxialTree
-Lsystem::partialForwardStep(size_t beg,
-                            size_t size,
-                            AxialTree &workingstring,
-                            const RulePtrMap &ruleset)
+Lsystem::partial_forward_iterate(size_t beg,
+                                 size_t size,
+                                 AxialTree &workingstring,
+                                 const RulePtrMap &ruleset)
 {
   AxialTree targetstring;
   targetstring.reserve(size);
@@ -1056,10 +1057,10 @@ Lsystem::partialForwardStep(size_t beg,
 }
 
 AxialTree
-Lsystem::partialBackwardStep(size_t beg,
-                             size_t size,
-                             AxialTree &workingstring,
-                             const RulePtrMap &ruleset)
+Lsystem::partial_backward_iterate(size_t beg,
+                                  size_t size,
+                                  AxialTree &workingstring,
+                                  const RulePtrMap &ruleset)
 {
   AxialTree targetstring;
   targetstring.reserve(size);

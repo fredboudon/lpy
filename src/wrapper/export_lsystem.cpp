@@ -141,9 +141,9 @@ void export_Lsystem()
 		.def("read", &Lsystem::read, "Read the content of a file and execute it", (boost::python::arg("filename"), boost::python::arg("parameters") = boost::python::dict()))
 		.def("setCode", &lsys_setCode, "Set Lsystem code. If debug parameter is set to True, the translated Python code is returned.", (boost::python::arg("code"), boost::python::arg("parameters") = boost::python::dict(), boost::python::arg("debug") = false))
 		/*Added a method to call partialForwardstep from python*/
-		.def("partial_iterate", (AxialTree(Lsystem::*)(size_t, size_t, AxialTree &, const RulePtrMap &)) & Lsystem::partialForwardStep)
+		.def("partial_iterate", (AxialTree(Lsystem::*)(size_t, size_t, AxialTree &, const RulePtrMap &)) & Lsystem::partial_forward_iterate)
 		/*Added a method to call partialBackwarddstep from python*/
-		.def("partial_iterate_1", (AxialTree(Lsystem::*)(size_t, size_t, AxialTree &, const RulePtrMap &)) & Lsystem::partialBackwardStep)
+		.def("partial_iterate_1", (AxialTree(Lsystem::*)(size_t, size_t, AxialTree &, const RulePtrMap &)) & Lsystem::partial_backward_iterate)
 
 		.def("derive", (AxialTree(Lsystem::*)()) & Lsystem::derive)
 		.def("derive", (AxialTree(Lsystem::*)(size_t)) & Lsystem::derive)

@@ -88,6 +88,7 @@ def node_directSon(node):
     return node.direct_child()
 
 
+
 NodeModule.father = node_father
 NodeModule.sons = node_sons
 NodeModule.lateralSons = node_lateralSons
@@ -103,11 +104,13 @@ del node_directSon
 Lsystem.iterate = Lsystem.derive
 Lsystem.homomorphism = Lsystem.interpret
 
+
 class Lstring (AxialTree):
     def __init__(self, input = None, lsyscontext = None):
         if lsyscontext: lsyscontext.makeCurrent()
         if input : AxialTree.__init__(self,input)
         else: AxialTree.__init__(self)
+    
 
 class LsystemIterator:
     """ Lsystem iterator """
@@ -170,3 +173,20 @@ def generate_module(mclass, *params):
 
 ModuleClass.__call__ = generate_module
 del generate_module
+
+def parallel_iterate(self,lstring=None):
+    #Compute number of physical cores
+    cores = psutil.cpu_count(logical=False)
+    cstring = lstring
+    if cstring is None: cstring = self.axiom
+    
+    partition_size = int(len(cstring)/cores)
+    res = None
+    with Pool(cores) as p:
+        if (len(cstring) % cores != 0):
+            res = list(p.starmap(self.partial_iterate,[(i*partition_size,(i+1)*partition_size  if i < cores-1 else (i+1)*partition_size + (len(cstring) % cores,cstring)) for i in range(cores)]))
+        else:
+            res = list(p.starmap(self.partial_iterate,[(i*partition_size,(i+1)*partition_size,cstring) for i in range(cores)]))
+        return res
+
+Lsystem.parallel_iterate = parallel_iterate 

@@ -178,15 +178,15 @@ public:
                    size_t nb_iter,
                    bool previouslyinterpreted = false);
 
-  AxialTree partialForwardStep(size_t beg,
-                               size_t size,
-                               AxialTree &workingstring,
-                               const RulePtrMap &ruleset);
+  AxialTree partial_forward_iterate(size_t beg,
+                                    size_t size,
+                                    AxialTree &workingstring,
+                                    const RulePtrMap &ruleset);
 
-  AxialTree partialBackwardStep(size_t beg,
-                                size_t size,
-                                AxialTree &workingstring,
-                                const RulePtrMap &ruleset);
+  AxialTree partial_backward_iterate(size_t beg,
+                                     size_t size,
+                                     AxialTree &workingstring,
+                                     const RulePtrMap &ruleset);
 
   AxialTree decompose(const AxialTree &workstring);
 

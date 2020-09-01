@@ -20,6 +20,8 @@ class ComposedLsystem:
                 cstring = lsystem.derive(cstring)
         return cstring
     
+    
+
     def interpret(self,lstring):
         cstring = lstring
         for lsystem in self.interpretationlist[:-1]:
