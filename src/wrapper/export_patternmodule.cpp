@@ -37,44 +37,40 @@ using namespace boost::python;
 #define bp boost::python
 LPY_USING_NAMESPACE
 
-std::string var_getname(LsysVar * m){
-  return m->name();
+std::string var_getname(LsysVar *m)
+{
+	return m->name();
 }
 
-object qm_varnames(PatternModule * mod) { return make_list(mod->getVarNames())(); }
-object var_value(LsysVar * var) { return var->getPyValue(); }
+object qm_varnames(PatternModule *mod) { return make_list(mod->getVarNames())(); }
+object var_value(LsysVar *var) { return var->getPyValue(); }
 
-void export_PatternModule(){
+void export_PatternModule()
+{
 
+	class_<LsysVar>("LsysVar", init<const std::string &>("LsysVar(name)"))
+		.enable_pickling()
+		.def("__str__", &LsysVar::str)
+		.def("__repr__", &LsysVar::str)
+		.def("varname", &LsysVar::varname)
+		.def("isArgs", &LsysVar::isArgs)
+		.def("isKwds", &LsysVar::isKwds)
+		.def("value", &var_value)
+		.add_property("name", var_getname, &LsysVar::setName);
 
-  class_<LsysVar>
-	("LsysVar", init<const std::string&>("LsysVar(name)"))
-	.def("__str__", &LsysVar::str)
-	.def("__repr__", &LsysVar::str)
-	.def("varname", &LsysVar::varname)
-	.def("isArgs",  &LsysVar::isArgs)
-    .def("isKwds",  &LsysVar::isKwds)
-    .def("value",  &var_value)
-	.add_property("name",var_getname,&LsysVar::setName)
-	;
+	{
+		scope in_mod = class_<PatternModule, bases<Module>>("PatternModule", init<const std::string &, int>("PatternModule(name[,lineno])", (bp::arg("name"), bp::arg("lineno") = -1)))
+						   .def(init<size_t, const std::string &, int>("PatternModule(id,args[,lineno])", (bp::arg("id"), bp::arg("params"), bp::arg("lineno") = -1)))
+						   .def(init<const PatternModule &>("PatternModule(PatternModule)"))
+						   .def(module_func<PatternModule>())
+						   .add_static_property("matchingMethod", &MatchingEngine::getModuleMatchingMethod)
+						   .def("getVarNb", &PatternModule::getVarNb)
+						   .def("varnames", &qm_varnames);
 
-  {
-  scope in_mod = class_<PatternModule,  bases<Module> >
-	("PatternModule", init<const std::string&,int >("PatternModule(name[,lineno])",(bp::arg("name"),bp::arg("lineno")=-1)))
-	.def(init<size_t, const std::string&,int >("PatternModule(id,args[,lineno])",(bp::arg("id"),bp::arg("params"),bp::arg("lineno")=-1)))
-	.def(init<const PatternModule &>("PatternModule(PatternModule)"))
-    .def(module_func<PatternModule>())
-	.add_static_property("matchingMethod",&MatchingEngine::getModuleMatchingMethod)
-	.def("getVarNb",&PatternModule::getVarNb)
-    .def("varnames",&qm_varnames)
-	;
-
-  enum_<MatchingEngine::eModuleMatchingMethod>("eMatchingMethod")
-	  .value("eSimple",MatchingEngine::eMSimple)
-	  .value("eWithStar",MatchingEngine::eMWithStar)
-	  .value("eWithStarNValueConstraint",MatchingEngine::eMWithStarNValueConstraint)
-	  .export_values();
-
-  }
-
+		enum_<MatchingEngine::eModuleMatchingMethod>("eMatchingMethod")
+			.value("eSimple", MatchingEngine::eMSimple)
+			.value("eWithStar", MatchingEngine::eMWithStar)
+			.value("eWithStarNValueConstraint", MatchingEngine::eMWithStarNValueConstraint)
+			.export_values();
+	}
 }

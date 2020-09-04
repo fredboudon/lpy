@@ -35,41 +35,45 @@ using namespace boost::python;
 #define bp boost::python
 LPY_USING_NAMESPACE
 
-
-bp::object translate_node(const NodeModule& res) {
-	if (!res.isValid()) return bp::object();
-	else return boost::python::object(res);
+bp::object translate_node(const NodeModule &res)
+{
+	if (!res.isValid())
+		return bp::object();
+	else
+		return boost::python::object(res);
 }
 
-bp::object translate_nodes(const std::vector<NodeModule>& res) {
-	if (res.empty()) return bp::object();
-	else return make_list(res);
+bp::object translate_nodes(const std::vector<NodeModule> &res)
+{
+	if (res.empty())
+		return bp::object();
+	else
+		return make_list(res);
 }
 
-bp::object py_parent(const NodeModule* obj) { return translate_node(obj->parent()); }
-bp::object py_direct_child(const NodeModule* obj) { return translate_node(obj->direct_child()); }
-bp::object py_children(const NodeModule* obj) { return translate_nodes(obj->children()); }
-bp::object py_lateral_children(const NodeModule* obj) { return translate_nodes(obj->lateral_children()); }
-bp::object py_complex(const NodeModule* obj) { return translate_node(obj->complex()); }
-bp::object py_complex1(const NodeModule* obj, int s) { return translate_node(obj->complex(s)); }
-bp::object py_components(const NodeModule* obj) { return translate_nodes(obj->components()); }
-bp::object py_components_at_scale(const NodeModule* obj, int s) { return translate_nodes(obj->components_at_scale(s)); }
+bp::object py_parent(const NodeModule *obj) { return translate_node(obj->parent()); }
+bp::object py_direct_child(const NodeModule *obj) { return translate_node(obj->direct_child()); }
+bp::object py_children(const NodeModule *obj) { return translate_nodes(obj->children()); }
+bp::object py_lateral_children(const NodeModule *obj) { return translate_nodes(obj->lateral_children()); }
+bp::object py_complex(const NodeModule *obj) { return translate_node(obj->complex()); }
+bp::object py_complex1(const NodeModule *obj, int s) { return translate_node(obj->complex(s)); }
+bp::object py_components(const NodeModule *obj) { return translate_nodes(obj->components()); }
+bp::object py_components_at_scale(const NodeModule *obj, int s) { return translate_nodes(obj->components_at_scale(s)); }
 
+void export_NodeModule()
+{
 
-void export_NodeModule(){
-
-	class_<NodeModule,  bases<ParamModule> >("NodeModule",no_init)
-	.def("parent", &py_parent)
-	.def("children", &py_children)
-	.def("lateral_children", &py_lateral_children)
-	.def("direct_child", &py_direct_child)
-	.def("complex", &py_complex)
-	.def("complex", &py_complex1)
-    .def("components", &py_components)
-    .def("components_at_scale", &py_components_at_scale)
-	.def("isValid", &NodeModule::isValid)
-	.def("isRoot", &NodeModule::isRoot)
-	.def("position", &NodeModule::position)
-	;
-
+	class_<NodeModule, bases<ParamModule>>("NodeModule", no_init)
+		.enable_pickling()
+		.def("parent", &py_parent)
+		.def("children", &py_children)
+		.def("lateral_children", &py_lateral_children)
+		.def("direct_child", &py_direct_child)
+		.def("complex", &py_complex)
+		.def("complex", &py_complex1)
+		.def("components", &py_components)
+		.def("components_at_scale", &py_components_at_scale)
+		.def("isValid", &NodeModule::isValid)
+		.def("isRoot", &NodeModule::isRoot)
+		.def("position", &NodeModule::position);
 }

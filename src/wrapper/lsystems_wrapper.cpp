@@ -38,28 +38,25 @@
 using namespace boost::python;
 LPY_USING_NAMESPACE
 
-
-
-
 BOOST_PYTHON_MODULE(__lpy_kernel__)
 {
     Lpy_Initialize();
-    
-	export_Options();
-	export_ModuleClass();
-	export_Module();
+
+    export_Options();
+    export_ModuleClass();
+    export_Module();
     export_Consider();
-	export_PatternModule();
-	export_AxialTree();
-	export_PatternString();
+    export_PatternModule();
+    export_AxialTree();
+    export_PatternString();
     export_NodeModule();
     export_Interpretation();
     export_LsysRule();
     export_LsysContext();
     export_Lsystem();
     export_plot();
-	export_parser();
+    export_parser();
     export_StringMatching();
     export_Debugger();
-	// def("cleanLsys",&cleanLsys);
+    // def("cleanLsys",&cleanLsys);
 };

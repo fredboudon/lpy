@@ -36,26 +36,22 @@ using namespace boost::python;
 LPY_USING_NAMESPACE
 #define bp boost::python
 
+boost::python::object py_varnames(PatternString *tree)
+{
+	return make_list(tree->getVarNames());
+}
 
-boost::python::object py_varnames(PatternString * tree)
-{ return make_list(tree->getVarNames()); }
+void export_PatternString()
+{
 
-
-
-void export_PatternString() {
-
-  class_<PatternString>
-	("PatternString", init<>("PatternString()"))
-	.def(init<const PatternString &>("PatternString(PatternString)"))
-	.def(init<const PatternModule &>("PatternString(PatternModule)"))
-	.def(init<std::string,optional<int> >("PatternString(str[,lineno])"))
-	.def("__str__", &PatternString::str)
-	.def("__repr__",&PatternString::repr)
-    .def(lstring_func<PatternString>())
-    .def( "varnames", &py_varnames )
-    .def( "getVarNb", &PatternString::getVarNb )
-	;
-
-
-
+	class_<PatternString>("PatternString", init<>("PatternString()"))
+		.enable_pickling()
+		.def(init<const PatternString &>("PatternString(PatternString)"))
+		.def(init<const PatternModule &>("PatternString(PatternModule)"))
+		.def(init<std::string, optional<int>>("PatternString(str[,lineno])"))
+		.def("__str__", &PatternString::str)
+		.def("__repr__", &PatternString::repr)
+		.def(lstring_func<PatternString>())
+		.def("varnames", &py_varnames)
+		.def("getVarNb", &PatternString::getVarNb);
 }

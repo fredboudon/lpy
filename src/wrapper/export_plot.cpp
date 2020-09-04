@@ -44,51 +44,57 @@ PGL_USING_NAMESPACE
 
 /* ----------------------------------------------------------------------- */
 
-object generateScene(AxialTree& a,PglTurtle& t){
-    ScenePtr sc = LPY::scene(a,t);
+object generateScene(AxialTree &a, PglTurtle &t)
+{
+    ScenePtr sc = LPY::scene(a, t);
     return object(sc);
 }
 
-object generateScene1(AxialTree& a){
+object generateScene1(AxialTree &a)
+{
     PglTurtle t;
-    return generateScene(a,t);
+    return generateScene(a, t);
 }
 
+static boost::python::object *MyPlotter = NULL;
 
-static boost::python::object * MyPlotter = NULL;
-
-static void pyCustomPglPlot(const ScenePtr& sc)
-{    
-	MyPlotter->attr("plot")(sc);
+static void pyCustomPglPlot(const ScenePtr &sc)
+{
+    MyPlotter->attr("plot")(sc);
 }
 
 static std::vector<uint_t> pyCustomSelect()
-{    
-    boost::python::object sel = MyPlotter->attr("selection")(); 
+{
+    boost::python::object sel = MyPlotter->attr("selection")();
     extract<uint_t> ei(sel);
-    if (ei.check()){ // selection is only one id.
+    if (ei.check())
+    { // selection is only one id.
         std::vector<uint_t> res;
         res.push_back(ei());
         return res;
     }
-    else return extract_vec<uint_t>(sel)();
+    else
+        return extract_vec<uint_t>(sel)();
 }
 
-static void pyCustomSave(const std::string& fname, const std::string& format )
-{    
-	MyPlotter->attr("save")(fname,format);
+static void pyCustomSave(const std::string &fname, const std::string &format)
+{
+    MyPlotter->attr("save")(fname, format);
 }
 
-static uint_t pyCustomWaitSelection(const std::string& txt)
-{    
-	boost::python::object sel = MyPlotter->attr("waitSelection")(txt); 
-	if(sel) return extract<uint_t>(sel);
-	else return UINT32_MAX;
+static uint_t pyCustomWaitSelection(const std::string &txt)
+{
+    boost::python::object sel = MyPlotter->attr("waitSelection")(txt);
+    if (sel)
+        return extract<uint_t>(sel);
+    else
+        return UINT32_MAX;
 }
 
 void pyRegisterPlotter(boost::python::object plotter)
 {
-	if (MyPlotter)delete MyPlotter;
+    if (MyPlotter)
+        delete MyPlotter;
     MyPlotter = new object(plotter);
     registerPglPlotFunction(pyCustomPglPlot);
     registerGetSelectionFunction(pyCustomSelect);
@@ -96,23 +102,23 @@ void pyRegisterPlotter(boost::python::object plotter)
     registerSaveImageFunction(pyCustomSave);
 }
 
-void pyCleanPlotter(){
-	if (MyPlotter)delete MyPlotter;
-	MyPlotter = NULL;
-	cleanPglPlotFunction();
-	cleanGetSelectionFunction();
-	cleanWaitSelectionFunction();
-	cleanSaveImageFunction();
+void pyCleanPlotter()
+{
+    if (MyPlotter)
+        delete MyPlotter;
+    MyPlotter = NULL;
+    cleanPglPlotFunction();
+    cleanGetSelectionFunction();
+    cleanWaitSelectionFunction();
+    cleanSaveImageFunction();
 }
-
 
 void export_plot()
 {
-  def("plot",(void(*)(AxialTree&,PglTurtle&))&LPY::plot);
-  def("plot",(void(*)(AxialTree&))&LPY::plot);
-  def("generateScene",&generateScene);
-  def("generateScene",&generateScene1);
-  def("registerPlotter",&pyRegisterPlotter);
-  def("cleanPlotter",&pyCleanPlotter);
-
+    def("plot", (void (*)(AxialTree &, PglTurtle &)) & LPY::plot);
+    def("plot", (void (*)(AxialTree &)) & LPY::plot);
+    def("generateScene", &generateScene);
+    def("generateScene", &generateScene1);
+    def("registerPlotter", &pyRegisterPlotter);
+    def("cleanPlotter", &pyCleanPlotter);
 }

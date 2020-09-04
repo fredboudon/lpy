@@ -33,38 +33,35 @@
 using namespace boost::python;
 LPY_USING_NAMESPACE
 
-
-object values(StringMatching::const_iterator& it){
-    return make_tuple(it.original(),it.target());
+object values(StringMatching::const_iterator &it)
+{
+	return make_tuple(it.original(), it.target());
 }
 
-object nextValues(StringMatching::const_iterator& it){
-    it.increment();
-    return values(it);
+object nextValues(StringMatching::const_iterator &it)
+{
+	it.increment();
+	return values(it);
 }
 
-void export_StringMatching(){
+void export_StringMatching()
+{
 
+	scope s = class_<StringMatching>("StringMatching", init<>("StringMatching()"))
+				  // .def("__str__", &StringMatching::str)
+				  // .def("__repr__",&StringMatching::repr)
+				  .def("begin", &StringMatching::begin)
+				  .def("end", &StringMatching::end)
+				  // .def("__len__", &Module::argSize)
+				  .def("append", &StringMatching::append)
+				  .def("addIdentity", &StringMatching::addIdentity);
 
-    scope s = class_<StringMatching>
-	("StringMatching", init<>("StringMatching()"))
-	// .def("__str__", &StringMatching::str)
-	// .def("__repr__",&StringMatching::repr)
-	.def("begin",  &StringMatching::begin)
-	.def("end", &StringMatching::end)
-	// .def("__len__", &Module::argSize)
-	.def("append", &StringMatching::append)
-	.def("addIdentity", &StringMatching::addIdentity)
-	;
-
-  class_<StringMatching::const_iterator>
-	("const_iterator", no_init)
-	 .def("increment", &StringMatching::const_iterator::increment)
-	 .def("values", &values)
-	 .def("original", &StringMatching::const_iterator::original, return_value_policy<return_by_value>())
-	 .def("target", &StringMatching::const_iterator::target,return_value_policy<return_by_value>())
-	 .def("next", &StringMatching::const_iterator::next,return_value_policy<return_by_value>())
-	 .def("nextValues", &nextValues)
-	;
-
+	class_<StringMatching::const_iterator>("const_iterator", no_init)
+		.enable_pickling()
+		.def("increment", &StringMatching::const_iterator::increment)
+		.def("values", &values)
+		.def("original", &StringMatching::const_iterator::original, return_value_policy<return_by_value>())
+		.def("target", &StringMatching::const_iterator::target, return_value_policy<return_by_value>())
+		.def("next", &StringMatching::const_iterator::next, return_value_policy<return_by_value>())
+		.def("nextValues", &nextValues);
 }

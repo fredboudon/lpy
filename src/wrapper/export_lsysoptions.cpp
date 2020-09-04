@@ -34,54 +34,54 @@ using namespace boost::python;
 LPY_USING_NAMESPACE
 
 template <class T>
-const typename T::element_type * get_item(T * obj, int index) 
+const typename T::element_type *get_item(T *obj, int index)
 {
-  size_t s = obj->size();
-  if( index < 0 ) index +=  s;
-  if( index < s ) return *(obj->begin() + index);
-  else {
-    PyErr_SetString(PyExc_IndexError, "Out of range index.");
-	boost::python::throw_error_already_set();
-	return NULL;
-  }
+	size_t s = obj->size();
+	if (index < 0)
+		index += s;
+	if (index < s)
+		return *(obj->begin() + index);
+	else
+	{
+		PyErr_SetString(PyExc_IndexError, "Out of range index.");
+		boost::python::throw_error_already_set();
+		return NULL;
+	}
 }
 
-void export_Options(){
+void export_Options()
+{
 
-	class_<LsysOptionValue,boost::noncopyable>
-	// ("LsysOptionValue", init<const std::string&, optional<const std::string&> >
-	// ("LsysOptionValue(name[,comment])",args("name","comment")))
-	("LsysOptionValue", no_init)
-	.def_readwrite("name", &LsysOptionValue::name)
-	.def_readwrite("comment", &LsysOptionValue::comment)
-	.def("activate",&LsysOptionValue::activate)
-	;
-	class_<LsysOption,boost::noncopyable>
-	("LsysOption", init<const std::string&, optional<const std::string&,const std::string&> >
-	("LsysOption(name[,comment,category])",args("name","comment","category")))
-	.def_readwrite("name", &LsysOption::name)
-	.def_readwrite("comment", &LsysOption::comment)
-	.def_readwrite("category", &LsysOption::category)
-	.def_readwrite("default_value_id", &LsysOption::default_value_id)
-	.def_readwrite("global", &LsysOption::global)
-    .add_property("selection", &LsysOption::getCurrentValueId,&LsysOption::setCurrentValueId)
-	.def("activate",&LsysOption::activate,args("value"))
-	.def("activateSelection",&LsysOption::activateSelection)
-	.def("setSelection",(bool(LsysOption::*)(const std::string&))&LsysOption::setSelection)
-	.def("setSelection",(bool(LsysOption::*)(size_t))&LsysOption::setSelection)
-	.def("__getitem__",&get_item<LsysOption>,return_internal_reference<>())
-	.def("__len__",&LsysOption::size)
-	.def("currentValue",&LsysOption::currentValue,return_value_policy<return_by_value>())
-	.def("isToDefault",&LsysOption::isToDefault)
-	;
-	class_<LsysOptions,boost::noncopyable> ("LsysOptions", init<>("LsysOptions()"))
-	.def("activate",&LsysOptions::activate,args("value"))
-	.def("activateSelection",&LsysOptions::activateSelection)
-	.def("setSelection",(bool(LsysOptions::*)(const std::string&,const std::string&))&LsysOptions::setSelection)
-	.def("setSelection",(bool(LsysOptions::*)(const std::string&,size_t))&LsysOptions::setSelection)
-	.def("find",&LsysOptions::find,return_internal_reference<>())
-	.def("__getitem__",&get_item<LsysOptions>,return_internal_reference<>())
-	.def("__len__",&LsysOptions::size)
-	;
-
+	class_<LsysOptionValue, boost::noncopyable>
+		// ("LsysOptionValue", init<const std::string&, optional<const std::string&> >
+		// ("LsysOptionValue(name[,comment])",args("name","comment")))
+		("LsysOptionValue", no_init)
+			.enable_pickling()
+			.def_readwrite("name", &LsysOptionValue::name)
+			.def_readwrite("comment", &LsysOptionValue::comment)
+			.def("activate", &LsysOptionValue::activate);
+	class_<LsysOption, boost::noncopyable>("LsysOption", init<const std::string &, optional<const std::string &, const std::string &>>("LsysOption(name[,comment,category])", args("name", "comment", "category")))
+		.enable_pickling()
+		.def_readwrite("name", &LsysOption::name)
+		.def_readwrite("comment", &LsysOption::comment)
+		.def_readwrite("category", &LsysOption::category)
+		.def_readwrite("default_value_id", &LsysOption::default_value_id)
+		.def_readwrite("global", &LsysOption::global)
+		.add_property("selection", &LsysOption::getCurrentValueId, &LsysOption::setCurrentValueId)
+		.def("activate", &LsysOption::activate, args("value"))
+		.def("activateSelection", &LsysOption::activateSelection)
+		.def("setSelection", (bool (LsysOption::*)(const std::string &)) & LsysOption::setSelection)
+		.def("setSelection", (bool (LsysOption::*)(size_t)) & LsysOption::setSelection)
+		.def("__getitem__", &get_item<LsysOption>, return_internal_reference<>())
+		.def("__len__", &LsysOption::size)
+		.def("currentValue", &LsysOption::currentValue, return_value_policy<return_by_value>())
+		.def("isToDefault", &LsysOption::isToDefault);
+	class_<LsysOptions, boost::noncopyable>("LsysOptions", init<>("LsysOptions()"))
+		.def("activate", &LsysOptions::activate, args("value"))
+		.def("activateSelection", &LsysOptions::activateSelection)
+		.def("setSelection", (bool (LsysOptions::*)(const std::string &, const std::string &)) & LsysOptions::setSelection)
+		.def("setSelection", (bool (LsysOptions::*)(const std::string &, size_t)) & LsysOptions::setSelection)
+		.def("find", &LsysOptions::find, return_internal_reference<>())
+		.def("__getitem__", &get_item<LsysOptions>, return_internal_reference<>())
+		.def("__len__", &LsysOptions::size);
 }

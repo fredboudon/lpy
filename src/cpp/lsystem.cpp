@@ -259,7 +259,7 @@ Lsystem::str() const
 {
   ACQUIRE_RESSOURCE
   std::stringstream s;
-  s << "Lsystem:\n";
+  //s << "Lsystem:\n";
   s << "Axiom: " << __axiom.str() << '\n';
 
   if (!__context.__modules.empty())
@@ -885,12 +885,11 @@ Lsystem::__step(AxialTree &workingstring,
                 bool &matching,
                 eDirection direction)
 {
-  /*
+
   if (__context.multicoreProcessing())
   {
     return __parallelStep(workingstring, ruleset, query, matching, direction);
   }
-  */
 
   ContextMaintainer c(&__context);
   matching = false;
@@ -1008,58 +1007,11 @@ Lsystem::__step(AxialTree &workingstring,
 #include <QtCore/QtConcurrentMap>
 #endif
 
-<<<<<<< HEAD
 AxialTree
-Lsystem::partial_forward_iterate(size_t beg,
-                                 size_t size,
-                                 AxialTree &workingstring,
-                                 const RulePtrMap &ruleset)
-=======
-
-
-AxialTree partialForwardStep(size_t beg, 
-                             size_t size,
-                             AxialTree& workingstring,
-                             const RulePtrMap& ruleset)
-{
-      AxialTree targetstring;
-      targetstring.reserve(size);
-
-      AxialTree::const_iterator itbeg = workingstring.const_begin() + beg;
-      AxialTree::const_iterator itend = itbeg;
-      if (workingstring.size() >= beg + size) itend += size;
-      else itend = workingstring.const_end();
-
-      AxialTree::const_iterator _it = itbeg;
-      AxialTree::const_iterator _it3 = _it;
-      AxialTree::IteratorMap itermap; 
-
-
-      while ( _it != itend ) {
-          // printf("process module %lu %lu\n", beg, std::distance(workingstring.const_begin(), _it));
-              bool match = false;
-              const RulePtrSet& mruleset = ruleset[_it->getClassId()];
-              for(RulePtrSet::const_iterator _it2 = mruleset.begin();
-                  _it2 != mruleset.end(); _it2++){
-                      ArgList args;
-                      if((*_it2)->match(workingstring,_it,targetstring,_it3,args,&itermap)){
-                          match = (*_it2)->applyTo(targetstring,args);
-                          if(match) { _it = _it3; break; }
-                      }
-              }
-              if (!match){
-                 targetstring.push_back(_it); ++_it;
-              }
-      }
-      return targetstring;
-
-}
-
-AxialTree partialBackwardStep(size_t beg, 
-                              size_t size,
-                              AxialTree& workingstring,
-                              const RulePtrMap& ruleset)
->>>>>>> 5017c8382ce1c0ab5b35add670d71dc2bf09683a
+partialForwardStep(size_t beg,
+                   size_t size,
+                   AxialTree &workingstring,
+                   const RulePtrMap &ruleset)
 {
   AxialTree targetstring;
   targetstring.reserve(size);
@@ -1103,11 +1055,11 @@ AxialTree partialBackwardStep(size_t beg,
   return targetstring;
 }
 
-AxialTree
-Lsystem::partial_backward_iterate(size_t beg,
-                                  size_t size,
-                                  AxialTree &workingstring,
-                                  const RulePtrMap &ruleset)
+AxialTree partialBackwardStep(size_t beg,
+                              size_t size,
+                              AxialTree &workingstring,
+                              const RulePtrMap &ruleset)
+
 {
   AxialTree targetstring;
   targetstring.reserve(size);
@@ -1119,9 +1071,7 @@ Lsystem::partial_backward_iterate(size_t beg,
   else
     itend = workingstring.const_end();
 
-<<<<<<< HEAD
-  AxialTree::const_iterator _it = itend - 1;
-  AxialTree::const_iterator _lastit = itbeg;
+  AxialTree::const_iterator _it = itbeg;
   AxialTree::const_iterator _it3 = _it;
   AxialTree::IteratorMap itermap;
 
@@ -1134,9 +1084,9 @@ Lsystem::partial_backward_iterate(size_t beg,
          _it2 != mruleset.end(); _it2++)
     {
       ArgList args;
-      if ((*_it2)->reverse_match(workingstring, _it, targetstring, _it3, args, &itermap))
+      if ((*_it2)->match(workingstring, _it, targetstring, _it3, args, &itermap))
       {
-        match = (*_it2)->reverseApplyTo(targetstring, args);
+        match = (*_it2)->applyTo(targetstring, args);
         if (match)
         {
           _it = _it3;
@@ -1146,11 +1096,8 @@ Lsystem::partial_backward_iterate(size_t beg,
     }
     if (!match)
     {
-      targetstring.push_front(_it);
-      if (_it != _lastit)
-        --_it;
-      else
-        _it = itend;
+      targetstring.push_back(_it);
+      ++_it;
     }
   }
   return targetstring;
@@ -1160,7 +1107,46 @@ void assemble(AxialTree &result, const AxialTree &second)
 {
   result += second;
 }
-/*
+
+AxialTree Lsystem::partial_derivation(AxialTree &workingstring,
+                                      size_t beg,
+                                      size_t size)
+{
+
+  eDirection ndir = getDirection();
+  size_t group = __context.getGroup();
+  bool productionHasQuery;
+  bool decompositionHasQuery;
+  RulePtrMap production = __getRules(eProduction, group, ndir, &productionHasQuery);
+
+  RulePtrMap decomposition = __getRules(eDecomposition, group, ndir, &decompositionHasQuery);
+  AxialTree partialresult;
+
+  if (!production.empty())
+  {
+    if (ndir == eForward)
+    {
+      partialresult = partialForwardStep(beg, size, workingstring, production);
+    }
+    else
+      partialresult = partialBackwardStep(beg, size, workingstring, production);
+  }
+  else
+  {
+    partialresult = AxialTree(workingstring.begin() + beg, workingstring.begin() + beg + size);
+  }
+
+  if (!decomposition.empty())
+  {
+    bool decmatching;
+    partialresult = __recursiveSteps(partialresult, decomposition, __decomposition_max_depth, decmatching);
+  }
+
+  //std::cout << "Arrived at the end of function call" << std::endl;
+
+  return partialresult;
+}
+
 AxialTree
 Lsystem::__parallelStep(AxialTree &workingstring,
                         const RulePtrMap &ruleset,
@@ -1172,50 +1158,6 @@ Lsystem::__parallelStep(AxialTree &workingstring,
   matching = false;
   if (workingstring.empty())
     return workingstring;
-=======
-void assemble(AxialTree& result, const AxialTree& second)
-{  
-    result += second; 
-}
-
-AxialTree Lsystem::partial_derivation(AxialTree& workingstring,
-                               size_t beg, 
-                               size_t size)
-{
-  eDirection ndir = getDirection();
-  size_t group = __context.getGroup();
-  bool productionHasQuery;
-  bool decompositionHasQuery;
-  RulePtrMap production = __getRules(eProduction,group,ndir,&productionHasQuery);
-  RulePtrMap decomposition = __getRules(eDecomposition,group,ndir,&decompositionHasQuery);
-  AxialTree partialresult;
-  if (!production.empty()){
-    if (ndir == eForward)
-        partialresult = partialForwardStep(beg, size, workingstring, production);
-    else
-        partialresult = partialBackwardStep(beg, size, workingstring, production);
-  }
-  else {
-    partialresult = AxialTree(workingstring.begin()+beg,workingstring.begin()+beg+size);    
-  }
-  if(!decomposition.empty()){
-    bool decmatching;
-    partialresult = __recursiveSteps(partialresult, decomposition, __decomposition_max_depth, decmatching);
-  }
-  return partialresult;
-}
-
-
-AxialTree 
-Lsystem::__parallelStep(AxialTree& workingstring,
-                        const RulePtrMap& ruleset,
-                        bool query,
-                        bool& matching,
-                        eDirection direction){
-  ContextMaintainer c(&__context);
-  matching = false;
-  if( workingstring.empty()) return workingstring;
->>>>>>> 5017c8382ce1c0ab5b35add670d71dc2bf09683a
 
   // check no pseudo lsystem
 
@@ -1260,22 +1202,12 @@ Lsystem::__parallelStep(AxialTree& workingstring,
     return result.result();
   }
 }
-<<<<<<< HEAD
-*/
+
 AxialTree
 Lsystem::__stepWithMatching(AxialTree &workingstring,
                             const RulePtrMap &ruleset,
                             bool query,
                             StringMatching &matching)
-=======
-
-
-AxialTree 
-Lsystem::__stepWithMatching(AxialTree& workingstring,
-				const RulePtrMap& ruleset,
-				bool query,
-                StringMatching& matching)
->>>>>>> 5017c8382ce1c0ab5b35add670d71dc2bf09683a
 {
   ContextMaintainer c(&__context);
   if (workingstring.empty())

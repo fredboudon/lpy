@@ -154,7 +154,6 @@ public:
   void stepInterpretation(AxialTree &workstring);
 
   /** derive */
-<<<<<<< HEAD
   inline AxialTree derive()
   {
     return derive(__axiom, 0, __max_derivation);
@@ -179,40 +178,11 @@ public:
                    size_t nb_iter,
                    bool previouslyinterpreted = false);
 
-  AxialTree partial_forward_iterate(size_t beg,
-                                    size_t size,
-                                    AxialTree &workingstring,
-                                    const RulePtrMap &ruleset);
-
-  AxialTree partial_backward_iterate(size_t beg,
-                                     size_t size,
-                                     AxialTree &workingstring,
-                                     const RulePtrMap &ruleset);
+  AxialTree partial_derivation(AxialTree &workingstring,
+                               size_t beg,
+                               size_t size);
 
   AxialTree decompose(const AxialTree &workstring);
-=======
-  inline AxialTree derive( )
-  { return derive(__axiom, 0,__max_derivation); }
-  inline AxialTree derive( size_t nb_iter )
-  { return derive(__axiom, 0, nb_iter); }
-
-  inline AxialTree derive( const AxialTree& workstring )
-  { return derive(workstring, 0,__max_derivation); }
-
-  inline AxialTree derive( const AxialTree& workstring, size_t nb_iter )
-  { return derive(workstring, 0,nb_iter ); }
-
-  AxialTree derive( const AxialTree& workstring, 
-                     size_t starting_iter , 
-                     size_t nb_iter , 
-                     bool previouslyinterpreted = false  );
-
-  AxialTree partial_derivation(AxialTree& workingstring,
-                                 size_t beg, 
-                                 size_t size);
-
-  AxialTree decompose( const AxialTree& workstring  );
->>>>>>> 5017c8382ce1c0ab5b35add670d71dc2bf09683a
 
   /** Animation */
   inline AxialTree animate()
@@ -466,12 +436,12 @@ protected:
                    const RulePtrMap &ruleset,
                    bool query, bool &matching,
                    eDirection direction);
-  /*
+
   AxialTree __parallelStep(AxialTree &workingstring,
                            const RulePtrMap &ruleset,
                            bool query, bool &matching,
                            eDirection direction);
-  */
+
   AxialTree __debugStep(AxialTree &workingstring, const RulePtrMap &ruleset,
                         bool query, bool &matching, eDirection direction, Debugger &debugger);
 

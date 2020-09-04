@@ -2,7 +2,8 @@ from .__version__ import *
 from .__lpy_kernel__ import *
 from .parameterset import *
 from .defaultparameters import *
-
+import psutil 
+from multiprocessing import Pool
 def __mod_getattr__(self,name):
     if self.hasParameter(name): return self.getParameter(name)
     else: return self.__getattribute__(name)
@@ -174,19 +175,93 @@ def generate_module(mclass, *params):
 ModuleClass.__call__ = generate_module
 del generate_module
 
-def parallel_iterate(self,lstring=None):
+def fake_parallel_iterate(self,lstring,start,size):
+    print(lstring)
+    #return lstring
+    """
     #Compute number of physical cores
     cores = psutil.cpu_count(logical=False)
-    cstring = lstring
-    if cstring is None: cstring = self.axiom
-    
+    cstring = self.derive()
     partition_size = int(len(cstring)/cores)
+    
     res = None
     with Pool(cores) as p:
         if (len(cstring) % cores != 0):
-            res = list(p.starmap(self.partial_iterate,[(i*partition_size,(i+1)*partition_size  if i < cores-1 else (i+1)*partition_size + (len(cstring) % cores,cstring)) for i in range(cores)]))
+            print("Entered the if inside the while loop")
+            
+            res = list(p.starmap(self.partial_derivation,[(cstring,i*partition_size,partition_size  if i < cores-1 else partition_size + int(len(cstring) % cores)) for i in range(cores)]))
+            
+            print("Finished the computations")
         else:
-            res = list(p.starmap(self.partial_iterate,[(i*partition_size,(i+1)*partition_size,cstring) for i in range(cores)]))
-        return res
+            print("Entered the else inside the while loop")
+            res = list(p.starmap(self.partial_derivation,[(cstring,i*partition_size, partition_size) for i in range(cores)]))
+            print("Finished the computations")    
+    
+    return res
+    """
 
+Lsystem.fake_parallel_iterate = fake_parallel_iterate
+
+
+
+
+def parallel_iterate(self):
+    #Compute number of physical cores
+    cores = psutil.cpu_count(logical=False)
+    cstring = self.derive()
+    partition_size = int(len(cstring)/cores)
+    
+    res = None
+    with Pool(cores) as p:
+        if (len(cstring) % cores != 0):
+            print("Entered the if inside the while loop")
+            
+            res = list(p.starmap(self.fake_parallel_iterate,[(None,i*partition_size,partition_size  if i < cores-1 else partition_size + int(len(cstring) % cores)) for i in range(cores)]))
+            
+            print("Finished the computations")
+        else:
+            print("Entered the else inside the while loop")
+            res = list(p.starmap(self.fake_parallel_iterate,[(None,i*partition_size, partition_size) for i in range(cores)]))
+            print("Finished the computations")    
+    
+    return res
+    
 Lsystem.parallel_iterate = parallel_iterate 
+
+"""
+def __ls_getinitargs__(lstring):
+    return [m for m in lstring]
+
+Lstring.__getinitargs__ = __ls_getinitargs__
+
+def __mod_getinitargs__(pmod):
+    return (pmod.name,pmod.args)
+
+ParamModule.__getinitargs__ = __mod_getinitargs__
+"""
+def __lsys_getinitargs__(lsys):
+    return [lsys.filename]
+
+
+Lsystem.__getinitargs__ = __lsys_getinitargs__
+
+
+def __axiatree_getinitargs__(self):
+    return [str(self)]
+
+AxialTree.__getinitargs__ = __axiatree_getinitargs__ 
+
+
+
+"""
+def __lsys_getstate__(self):
+    return (str(self))
+
+def __lsys_setstate__(self,state):
+    #print(state[0])
+    self.setCode(state)
+
+
+Lsystem.__getstate__ = __lsys_getstate__
+Lsystem.__setstate__ = __lsys_setstate__
+"""
