@@ -137,7 +137,7 @@ class ManagerDialogContainer (QObject):
 
     def endObjectEdition(self):
         if self.editor:
-            self.editorDialog.hide()
+           self.editorDialog.hide()
         
     def getEditedObject(self):
         """ used by panel. ask for object edition to start. Use getEditor and  setObjectToEditor """
@@ -147,6 +147,7 @@ class ManagerDialogContainer (QObject):
     def endEditionEvent(self):
         """ called when closing editor. """
         self.editedobjectid = None
+        self.editor = None
     
     def isVisible(self):
         """ Tell whether editor is visible """
