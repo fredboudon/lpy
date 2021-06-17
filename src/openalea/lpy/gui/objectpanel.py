@@ -143,6 +143,8 @@ class ManagerDialogContainer (QObject):
         """ used by panel. ask for object edition to start. Use getEditor and  setObjectToEditor """
         if not self.editedobjectid is None:
             return self.manager.retrieveObjectFromEditor(self.editor),self.editedobjectid
+        else:
+            return None, None #function must always return a tuple
 
     def endEditionEvent(self):
         """ called when closing editor. """
