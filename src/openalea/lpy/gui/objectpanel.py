@@ -6,10 +6,10 @@ import sys, traceback, os
 from math import sin, pi
 
 from .objectmanagers import get_managers
-
-from openalea.plantgl.gui.qt.QtCore import QObject, QPoint, Qt, pyqtSignal, QT_VERSION_STR
-from openalea.plantgl.gui.qt.QtGui import QFont, QFontMetrics, QImageWriter, QColor, QPainter
-from openalea.plantgl.gui.qt.QtWidgets import QAction, QApplication, QDockWidget, QFileDialog, QLineEdit, QMenu, QMessageBox, QScrollArea, QVBoxLayout, QWidget
+from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
+from openalea.plantgl.gui.qt.QtCore import QObject, QPoint, Qt, pyqtSignal, pyqtSlot, QT_VERSION_STR
+from openalea.plantgl.gui.qt.QtGui import QFont, QFontMetrics, QImageWriter, QColor, QPainter, QPixmap
+from openalea.plantgl.gui.qt.QtWidgets import QAbstractItemView, QAction, QApplication, QDockWidget, QFileDialog, QLineEdit, QMenu, QMessageBox, QScrollArea, QVBoxLayout, QWidget, QLabel, QListView, QListWidget, QListWidgetItem
 
 
 def renderText(self, x, y, text, font = QFont(), color = None):
@@ -152,6 +152,198 @@ class ManagerDialogContainer (QObject):
         """ Tell whether editor is visible """
         return (not (self.editorDialog is None)) and self.editorDialog.isVisible()
 
+
+class DockerMover:
+    def __init__(self, mainwindow, position, panel):
+        self.mainwindow = mainwindow
+        self.panel = panel
+        self.position = position
+    def __call__(self):
+        if self.position == 'Floating':
+            if not self.panel.isFloating():
+                self.panel.setFeatures(QDockWidget.DockWidgetClosable | QDockWidget.DockWidgetFloatable)
+                self.panel.setFloating(True)
+        else:
+            self.panel.setFeatures(QDockWidget.DockWidgetClosable)
+            self.panel.setFloating(False)
+            if self.mainwindow.dockWidgetArea(self.panel) != self.position:
+                visibilitycheck = self.mainwindow.isVisible()
+                parentdock = [dock for dock in self.mainwindow.findChildren(QDockWidget) if dock != self.panel and (not visibilitycheck or not dock.isHidden()) and self.mainwindow.dockWidgetArea(dock) == self.position]
+                self.mainwindow.addDockWidget(self.position, self.panel)
+                #print([p.windowTitle() for p in parentdock])
+                if len(parentdock) > 0:
+                    self.mainwindow.tabifyDockWidget(parentdock[0], self.panel)
+
+# the Manager stores all Object Panels and clipboard
+class ObjectPanelManager(QObject):
+    def __init__(self,parent):
+        QObject.__init__(self,parent)
+        self.parent = parent
+        self.vparameterView = self.parent.vparameterView        
+        self.panels  = []
+        self.unusedpanels = []
+        self.vparameterView.addAction("New Panel",self.createNewPanel)
+        self.vparameterView.addSeparator()
+        self.clipboard = None
+    def setClipboard(self,obj):
+        self.clipboard = obj
+    def getClipboard(self):
+        obj = self.clipboard
+        self.clipboard = None
+        return obj
+    def hasClipboard(self):
+        return not self.clipboard is None
+    def getObjectPanels(self):
+        return self.panels
+    def getMaxObjectPanelNb(self):
+        return len(self.panels)+len(self.unusedpanels)
+    def setObjectPanelNb(self,nb, new_visible = True):
+        nbpanel = len(self.panels)
+        if nb < nbpanel:
+            newunusedpanels = self.panels[nb:]
+            self.unusedpanels = [(panel,panel.isVisible()) for panel in newunusedpanels]+self.unusedpanels
+            self.panels = self.panels[:nb]
+            for panel in newunusedpanels:
+                panel.hide()
+                self.vparameterView.removeAction(panel.toggleViewAction())
+        else:
+            nbtoadd = nb - nbpanel
+            nbunusedpanels = len(self.unusedpanels)
+            nbreused = min(nbtoadd,nbunusedpanels)
+            if nbreused > 0:
+                for i in range(nbreused):
+                    npanel,visible = self.unusedpanels.pop(0)
+                    self.panels.append(npanel)
+                    if visible:
+                        npanel.show()
+                    self.vparameterView.addAction(npanel.toggleViewAction())
+            if nbtoadd-nbunusedpanels > 0:
+                for i in range(nbtoadd-nbunusedpanels):
+                    npanel = LpyObjectPanelDock(self.parent,"Panel "+str(i+nbpanel+nbunusedpanels),self)
+                    npanel.setStatusBar(self.parent.statusBar())
+                    npanel.valueChanged.connect(self.parent.projectEdited)
+                    npanel.valueChanged.connect(self.parent.projectParameterEdited)
+                    npanel.AutomaticUpdate.connect(self.parent.projectAutoRun)
+                    npanel.setFeatures(QDockWidget.DockWidgetClosable)
+                    self.panels.append(npanel)
+                    DockerMover(self.parent, Qt.BottomDockWidgetArea, npanel)()
+                    #self.parent.addDockWidget(Qt.BottomDockWidgetArea,npanel)
+                    self.vparameterView.addAction(npanel.toggleViewAction())
+                    if new_visible:
+                        npanel.show()
+                    #self.restoreDockWidget(npanel)
+    def completeMenu(self,menu,panel):
+        panelmenu = QMenu("Panel",menu)
+        menu.addSeparator()
+        menu.addMenu(panelmenu)
+        panelAction = QAction('Rename',panelmenu)
+        panelAction.triggered.connect(panel.rename)
+        panelmenu.addAction(panelAction)
+        panelAction = QAction('Delete',panelmenu)
+        panelAction.triggered.connect(TriggerParamFunc(self.deletePanel,panel))
+        panelmenu.addAction(panelAction)
+        panelAction = QAction('New',panelmenu)
+        panelAction.triggered.connect(TriggerParamFunc(self.createNewPanel,panel))
+        panelmenu.addAction(panelAction)
+        panelAction = QAction('Duplicate',panelmenu)
+        panelAction.triggered.connect(TriggerParamFunc(self.duplicatePanel,panel))
+        panelmenu.addAction(panelAction)
+        panelAction = QAction('Disable' if panel.view.isActive() else 'Enable',panelmenu)
+        panelAction.triggered.connect(TriggerParamFunc(panel.view.setActive,not panel.view.isActive()))
+        panelmenu.addAction(panelAction)
+
+        subpanelmenu = QMenu("Theme",menu)
+        panelmenu.addSeparator()
+        panelmenu.addMenu(subpanelmenu)
+
+        # disable themes
+        """"
+        for themename,value in ObjectListDisplay.THEMES.items():
+            panelAction = QAction(themename,subpanelmenu)
+            panelAction.triggered.connect(TriggerParamFunc(panel.view.applyTheme,value))
+            subpanelmenu.addAction(panelAction)
+        """
+
+        subpanelmenu = QMenu("Move To",menu)
+        panelmenu.addSeparator()
+        panelmenu.addMenu(subpanelmenu)
+
+        for position, flag in [('Bottom', Qt.BottomDockWidgetArea), ('Left', Qt.LeftDockWidgetArea), ('Right', Qt.RightDockWidgetArea), ('Top', Qt.TopDockWidgetArea), ('Floating', 'Floating')]:
+            panelAction = QAction(position,subpanelmenu)
+            panelAction.triggered.connect(DockerMover(self.parent.window(),flag, panel))
+            subpanelmenu.addAction(panelAction)
+            
+        return panelmenu
+    def createNewPanel(self,above = None):
+        nb = len(self.panels)+1
+        self.setObjectPanelNb(nb)
+        npanel = self.panels[-1]
+        npanel.setObjects([])
+        npanel.show()
+        npanel.setName(self.computeNewPanelName('Panel'))
+        if not above is None:
+            self.parent.tabifyDockWidget(above,npanel)
+
+    def duplicatePanel(self,source):
+        nb = len(self.panels)+1
+        self.setObjectPanelNb(nb)
+        npanel = self.panels[-1]
+        npanel.setObjects(source.getObjectsCopy())
+        npanel.show()
+        npanel.setName(self.computeNewPanelName(source.name))
+        self.parent.tabifyDockWidget(source,npanel)
+        source.setActive(False)
+    def getPanel(self,panelname):
+        for panel in self.panels:
+            if panel.name == panelname:
+                return panel
+    def deletePanel(self,panel):
+        self.panels.pop( self.panels.index(panel) )
+        panel.hide()
+        self.vparameterView.removeAction(panel.toggleViewAction())
+        self.parent.projectEdited()
+    def computeNewPanelName(self,basename):
+        bn = retrievebasename(basename)
+        mid = retrievemaxidname([panel.name for panel in self.panels],bn)
+        if not mid is None:
+            return bn+' '+str(mid+1)
+        return bn
+
+
+from .objectpanelitem import ObjectPanelItem
+    
+class DragListWidget(QListWidget):
+
+    valueChanged = pyqtSignal(int)
+    itemSelectionChanged = pyqtSignal(int) # /!\ "selectionChanged" is already exists! Don't override already existing names!
+    AutomaticUpdate = pyqtSignal()
+    renameRequest = pyqtSignal(int)
+
+    widgetList : dict[QListWidgetItem] = {}
+    
+    def __init__(self, parent: QWidget = None, panelmanager: ObjectPanelManager = None) -> None:
+        super().__init__(parent=parent)
+        self.panelManager = panelmanager
+
+        self.setMinimumSize(200, 200)
+        # self.setFrameStyle(QFrame.Sunken | QFrame.StyledPanel)
+        self.setAcceptDrops(True)
+        # self.viewport().acceptDrops(True)
+        self.setDragEnabled(True)
+        self.setDragDropMode(QAbstractItemView.DragDrop)
+        self.setDefaultDropAction(Qt.MoveAction)
+        self.setFlow(QListView.TopToBottom)
+
+        for i in range(0, 10):
+            self.widgetList[i] = ObjectPanelItem(parent=self)
+            dummyThumbnail = QPixmap("/home/jonathan/images/house.png")
+            self.widgetList[i].setThumbnail(dummyThumbnail)
+            self.widgetList[i].setName(f"House #{i}")  
+            self.widgetList[i].setSizeHint(self.widgetList[i].getWidget().sizeHint())
+
+            self.setItemWidget(self.widgetList[i], self.widgetList[i].getWidget())
+
+            # self.insert(self.widgetList[i])
 
 class ObjectListDisplay(QGLParentClass): 
     """ Display and edit a list of parameter objects """
@@ -668,10 +860,10 @@ class ObjectListDisplay(QGLParentClass):
             glEnable(GL_BLEND)
             glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
             glViewport(0,0,w,h)
-            glMatrixMode(GL_PROJECTION);
-            glLoadIdentity();
-            glOrtho(0,w,h,0,-1000,1000);
-            glMatrixMode(GL_MODELVIEW);
+            glMatrixMode(GL_PROJECTION)
+            glLoadIdentity()
+            glOrtho(0,w,h,0,-1000,1000)
+            glMatrixMode(GL_MODELVIEW)
             glLoadIdentity()
             #glTranslatef(w*(self._scalingfactor-1)*0.5,-h*(self._scalingfactor-1),0)
             #glScalef(self._scalingfactor,self._scalingfactor,1)
@@ -1025,7 +1217,8 @@ class LpyObjectPanelDock (QDockWidget):
         self.verticalLayout.setObjectName(name+"verticalLayout")
         
         self.objectpanel = QScrollArea(self.dockWidgetContents)
-        self.view = ObjectListDisplay(self,panelmanager)
+        # self.view = ObjectListDisplay(self,panelmanager)
+        self.view = DragListWidget(self, panelmanager)
         self.view.dock = self
         self.view.scroll = self.objectpanel
         self.objectpanel.setWidget(self.view)
@@ -1041,7 +1234,7 @@ class LpyObjectPanelDock (QDockWidget):
         
         self.view.valueChanged.connect(self.__updateStatus)
         self.view.AutomaticUpdate.connect(self.__transmit_autoupdate)
-        self.view.selectionChanged.connect(self.endNameEditing)
+        self.view.itemSelectionChanged.connect(self.endNameEditing)
         self.view.renameRequest.connect(self.displayName)
         self.objectNameEdit.editingFinished.connect(self.updateName)
         self.dockNameEdition = False
@@ -1149,157 +1342,6 @@ class LpyObjectPanelDock (QDockWidget):
             self.previousVisibility = info['visible']
             self.setVisible(info['visible'])
 
-
-class DockerMover:
-    def __init__(self, mainwindow, position, panel):
-        self.mainwindow = mainwindow
-        self.panel = panel
-        self.position = position
-    def __call__(self):
-        if self.position == 'Floating':
-            if not self.panel.isFloating():
-                self.panel.setFeatures(QDockWidget.DockWidgetClosable | QDockWidget.DockWidgetFloatable)
-                self.panel.setFloating(True)
-        else:
-            self.panel.setFeatures(QDockWidget.DockWidgetClosable)
-            self.panel.setFloating(False)
-            if self.mainwindow.dockWidgetArea(self.panel) != self.position:
-                visibilitycheck = self.mainwindow.isVisible()
-                parentdock = [dock for dock in self.mainwindow.findChildren(QDockWidget) if dock != self.panel and (not visibilitycheck or not dock.isHidden()) and self.mainwindow.dockWidgetArea(dock) == self.position]
-                self.mainwindow.addDockWidget(self.position, self.panel)
-                #print([p.windowTitle() for p in parentdock])
-                if len(parentdock) > 0:
-                    self.mainwindow.tabifyDockWidget(parentdock[0], self.panel)
-
-class ObjectPanelManager(QObject):
-    def __init__(self,parent):
-        QObject.__init__(self,parent)
-        self.parent = parent
-        self.vparameterView = self.parent.vparameterView        
-        self.panels  = []
-        self.unusedpanels = []
-        self.vparameterView.addAction("New Panel",self.createNewPanel)
-        self.vparameterView.addSeparator()
-        self.clipboard = None
-    def setClipboard(self,obj):
-        self.clipboard = obj
-    def getClipboard(self):
-        obj = self.clipboard
-        self.clipboard = None
-        return obj
-    def hasClipboard(self):
-        return not self.clipboard is None
-    def getObjectPanels(self):
-        return self.panels
-    def getMaxObjectPanelNb(self):
-        return len(self.panels)+len(self.unusedpanels)
-    def setObjectPanelNb(self,nb, new_visible = True):
-        nbpanel = len(self.panels)
-        if nb < nbpanel:
-            newunusedpanels = self.panels[nb:]
-            self.unusedpanels = [(panel,panel.isVisible()) for panel in newunusedpanels]+self.unusedpanels
-            self.panels = self.panels[:nb]
-            for panel in newunusedpanels:
-                panel.hide()
-                self.vparameterView.removeAction(panel.toggleViewAction())
-        else:
-            nbtoadd = nb - nbpanel
-            nbunusedpanels = len(self.unusedpanels)
-            nbreused = min(nbtoadd,nbunusedpanels)
-            if nbreused > 0:
-                for i in range(nbreused):
-                    npanel,visible = self.unusedpanels.pop(0)
-                    self.panels.append(npanel)
-                    if visible:
-                        npanel.show()
-                    self.vparameterView.addAction(npanel.toggleViewAction())
-            if nbtoadd-nbunusedpanels > 0:
-                for i in range(nbtoadd-nbunusedpanels):
-                    npanel = LpyObjectPanelDock(self.parent,"Panel "+str(i+nbpanel+nbunusedpanels),self)
-                    npanel.setStatusBar(self.parent.statusBar())
-                    npanel.valueChanged.connect(self.parent.projectEdited)
-                    npanel.valueChanged.connect(self.parent.projectParameterEdited)
-                    npanel.AutomaticUpdate.connect(self.parent.projectAutoRun)
-                    npanel.setFeatures(QDockWidget.DockWidgetClosable)
-                    self.panels.append(npanel)
-                    DockerMover(self.parent, Qt.BottomDockWidgetArea, npanel)()
-                    #self.parent.addDockWidget(Qt.BottomDockWidgetArea,npanel)
-                    self.vparameterView.addAction(npanel.toggleViewAction())
-                    if new_visible:
-                        npanel.show()
-                    #self.restoreDockWidget(npanel)
-    def completeMenu(self,menu,panel):
-        panelmenu = QMenu("Panel",menu)
-        menu.addSeparator()
-        menu.addMenu(panelmenu)
-        panelAction = QAction('Rename',panelmenu)
-        panelAction.triggered.connect(panel.rename)
-        panelmenu.addAction(panelAction)
-        panelAction = QAction('Delete',panelmenu)
-        panelAction.triggered.connect(TriggerParamFunc(self.deletePanel,panel))
-        panelmenu.addAction(panelAction)
-        panelAction = QAction('New',panelmenu)
-        panelAction.triggered.connect(TriggerParamFunc(self.createNewPanel,panel))
-        panelmenu.addAction(panelAction)
-        panelAction = QAction('Duplicate',panelmenu)
-        panelAction.triggered.connect(TriggerParamFunc(self.duplicatePanel,panel))
-        panelmenu.addAction(panelAction)
-        panelAction = QAction('Disable' if panel.view.isActive() else 'Enable',panelmenu)
-        panelAction.triggered.connect(TriggerParamFunc(panel.view.setActive,not panel.view.isActive()))
-        panelmenu.addAction(panelAction)
-
-        subpanelmenu = QMenu("Theme",menu)
-        panelmenu.addSeparator()
-        panelmenu.addMenu(subpanelmenu)
-        for themename,value in ObjectListDisplay.THEMES.items():
-            panelAction = QAction(themename,subpanelmenu)
-            panelAction.triggered.connect(TriggerParamFunc(panel.view.applyTheme,value))
-            subpanelmenu.addAction(panelAction)
-
-        subpanelmenu = QMenu("Move To",menu)
-        panelmenu.addSeparator()
-        panelmenu.addMenu(subpanelmenu)
-
-        for position, flag in [('Bottom', Qt.BottomDockWidgetArea), ('Left', Qt.LeftDockWidgetArea), ('Right', Qt.RightDockWidgetArea), ('Top', Qt.TopDockWidgetArea), ('Floating', 'Floating')]:
-            panelAction = QAction(position,subpanelmenu)
-            panelAction.triggered.connect(DockerMover(self.parent.window(),flag, panel))
-            subpanelmenu.addAction(panelAction)
-            
-        return panelmenu
-    def createNewPanel(self,above = None):
-        nb = len(self.panels)+1
-        self.setObjectPanelNb(nb)
-        npanel = self.panels[-1]
-        npanel.setObjects([])
-        npanel.show()
-        npanel.setName(self.computeNewPanelName('Panel'))
-        if not above is None:
-            self.parent.tabifyDockWidget(above,npanel)
-
-    def duplicatePanel(self,source):
-        nb = len(self.panels)+1
-        self.setObjectPanelNb(nb)
-        npanel = self.panels[-1]
-        npanel.setObjects(source.getObjectsCopy())
-        npanel.show()
-        npanel.setName(self.computeNewPanelName(source.name))
-        self.parent.tabifyDockWidget(source,npanel)
-        source.setActive(False)
-    def getPanel(self,panelname):
-        for panel in self.panels:
-            if panel.name == panelname:
-                return panel
-    def deletePanel(self,panel):
-        self.panels.pop( self.panels.index(panel) )
-        panel.hide()
-        self.vparameterView.removeAction(panel.toggleViewAction())
-        self.parent.projectEdited()
-    def computeNewPanelName(self,basename):
-        bn = retrievebasename(basename)
-        mid = retrievemaxidname([panel.name for panel in self.panels],bn)
-        if not mid is None:
-            return bn+' '+str(mid+1)
-        return bn
 
 def main():
     qapp = QApplication([])
