@@ -112,7 +112,7 @@ class ManagerDialogContainer (QObject):
             self.editorDialog = ObjectDialog(self.panel)
             self.editor = self.manager.getEditor(self.editorDialog)
             if not self.editor: return
-            self.editorDialog.setupUi(self.editor)
+            self.editorDialog.setupUi(self.editor, self.manager)
             self.editorDialog.setWindowTitle(self.manager.typename+' Editor')
             self.manager.fillEditorMenu(self.editorDialog.menu(),self.editor)
             self.editorDialog.valueChanged.connect(self.__transmit_valueChanged__)
@@ -143,6 +143,8 @@ class ManagerDialogContainer (QObject):
         """ used by panel. ask for object edition to start. Use getEditor and  setObjectToEditor """
         if not self.editedobjectid is None:
             return self.manager.retrieveObjectFromEditor(self.editor),self.editedobjectid
+        else:
+            return None, None
 
     def endEditionEvent(self):
         """ called when closing editor. """
@@ -1217,8 +1219,8 @@ class LpyObjectPanelDock (QDockWidget):
         self.verticalLayout.setObjectName(name+"verticalLayout")
         
         self.objectpanel = QScrollArea(self.dockWidgetContents)
-        # self.view = ObjectListDisplay(self,panelmanager)
-        self.view = DragListWidget(self, panelmanager)
+        self.view = ObjectListDisplay(self,panelmanager)
+        # self.view = DragListWidget(self, panelmanager)
         self.view.dock = self
         self.view.scroll = self.objectpanel
         self.objectpanel.setWidget(self.view)
@@ -1234,7 +1236,8 @@ class LpyObjectPanelDock (QDockWidget):
         
         self.view.valueChanged.connect(self.__updateStatus)
         self.view.AutomaticUpdate.connect(self.__transmit_autoupdate)
-        self.view.itemSelectionChanged.connect(self.endNameEditing)
+        self.view.selectionChanged.connect(self.endNameEditing)
+        # self.view.itemSelectionChanged.connect(self.endNameEditing)
         self.view.renameRequest.connect(self.displayName)
         self.objectNameEdit.editingFinished.connect(self.updateName)
         self.dockNameEdition = False

@@ -1,3 +1,4 @@
+from PyQt5.QtGui import QPixmap
 from openalea.plantgl.gui.qt.QtCore import QObject
 
 MouseFocus, Selection, Actived = 1,2,4
@@ -27,7 +28,7 @@ class AbstractObjectManager(QObject):
             :param objectthumbwidth: width for the representation of the object in the panel
             Should be reimplemented
         """
-        raise NotImplementedError('displayThumbnail')
+        raise NotImplementedError('displayThumbnail')  
             
     def reset(self,obj):
         return self.createDefaultObject()
@@ -124,6 +125,14 @@ class AbstractPglObjectManager(AbstractObjectManager):
     def to_json(self, obj):
         import openalea.plantgl.algo.jsonrep  as jr
         return jr.to_json_rep(obj)
+
+    def getPixmapThumbnail(sel, obj, id, mode) -> QPixmap:
+        """ return a thumbnail as QPixmap for the Lpy main window Panel, 
+            :param obj: the object to display
+            :param id: id of the object in the list
+            :param mode: define if object has mode
+        """
+        return QPixmap() # you should reimplement this
 
     def displayThumbnail(self,obj,id,focus,objectthumbwidth):
         import OpenGL.GL as ogl

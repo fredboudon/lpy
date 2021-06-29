@@ -4,7 +4,7 @@ try:
 except:
     py2exe_release = False
 
-from openalea.plantgl.gui.qt import qt
+from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
 from openalea.plantgl.gui.qt.QtWidgets import QApplication, QCheckBox, QDialog, QHBoxLayout, QLayout, QMenuBar, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
@@ -23,9 +23,10 @@ class ObjectDialog(QDialog):
         self.automaticUpdate = False
         #self.setModal(True)
     
-    def setupUi(self,editor):
+    def setupUi(self,editor, manager: AbstractObjectManager):
         self.setObjectName("ObjectDialog")
         self.resize(389, 282)
+        self.manager : AbstractObjectManager = manager
         self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setSpacing(2)
         self.verticalLayout.setContentsMargins(2, 2, 2, 2)
@@ -55,6 +56,9 @@ class ObjectDialog(QDialog):
         self.okButton = QPushButton(self)
         self.okButton.setObjectName("okButton")
         self.horizontalLayout.addWidget(self.okButton)
+        self.screenshotButton = QPushButton(self)
+        self.screenshotButton.setObjectName("screenshotButton")
+        self.horizontalLayout.addWidget(self.screenshotButton)
         self.applyButton = QPushButton(self)
         self.applyButton.setObjectName("applyButton")
         self.horizontalLayout.addWidget(self.applyButton)
@@ -68,15 +72,25 @@ class ObjectDialog(QDialog):
         self.okButton.setText("Ok")
         self.applyButton.setText("Apply")
         self.cancelButton.setText("Cancel")
+        self.screenshotButton.setText("Screenshot")
       
         self.cancelButton.pressed.connect(self.reject)
         self.okButton.pressed.connect(self.__ok)
         self.applyButton.pressed.connect(self.__apply)
+        self.screenshotButton.pressed.connect(self.__screenshot)
         self.autoUpdateCheckBox.toggled.connect(self.setAutomaticUpdate)
         self.objectView.valueChanged.connect(self.__valueChanged)
         
     def menu(self):
         return self._menu
+
+    def __screenshot(self):
+        
+        qpixmap = self.manager.getPixmapThumbnail(self.objectView)
+        import time
+        filename = f"{time.time()}"
+        res = qpixmap.save(f"{filename}.png")
+        print(f"saving status {filename}.png : {res}")
     
     def __valueChanged(self):
         if self.automaticUpdate:

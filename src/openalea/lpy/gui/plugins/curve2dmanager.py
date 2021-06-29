@@ -58,10 +58,17 @@ class Curve2DManager(AbstractPglObjectManager):
         elif isinstance(obj,BezierCurve2D): 
             subtype = 'BezierCurve'
         return self.createDefaultObject(subtype)
+
     def getEditor(self,parent):
         if Curve2DEditor:
             return Curve2DEditor(parent,Curve2DConstraint())
         else : return None
+
+    def getPixmapThumbnail(self, editor: Curve2DEditor) -> QPixmap:
+        thumbnail = QPixmap()
+        qimageFrameBuffer = editor.grabFrameBuffer()
+        thumbnail.convertFromImage(qimageFrameBuffer)
+        return thumbnail
 
     def setObjectToEditor(self,editor,obj):
         """ ask for edition of obj with editor """

@@ -34,6 +34,13 @@ class FunctionManager(AbstractPglObjectManager):
             return Curve2DEditor(parent,FuncConstraint())
         else: return None
 
+    def getPixmapThumbnail(self, editor: Curve2DEditor) -> QPixmap:
+        thumbnail = QPixmap()
+        qimageFrameBuffer = editor.grabFrameBuffer()
+        thumbnail.convertFromImage(qimageFrameBuffer)
+        return thumbnail
+
+
     def setObjectToEditor(self,editor,obj):
         """ ask for edition of obj with editor """
         from copy import deepcopy        

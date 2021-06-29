@@ -57,6 +57,12 @@ class NurbsPatch3DManager(AbstractPglObjectManager):
         editor.view.camera().fitSphere(Vec(0,0,0.5),0.8)
         return editor
 
+    def getPixmapThumbnail(self, editor: NurbsObjectEditor) -> QPixmap:
+        thumbnail = QPixmap()
+        qimageFrameBuffer = editor.view.grabFrameBuffer()
+        thumbnail.convertFromImage(qimageFrameBuffer)
+        return thumbnail
+
     def setObjectToEditor(self,editor,obj):
         """ ask for edition of obj with editor """
         from copy import deepcopy        
