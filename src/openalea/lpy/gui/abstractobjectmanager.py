@@ -1,4 +1,5 @@
 from PyQt5.QtGui import QPixmap
+from openalea.plantgl.gui.qt import QtCore, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import QObject
 
 MouseFocus, Selection, Actived = 1,2,4

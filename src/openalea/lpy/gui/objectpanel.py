@@ -5,11 +5,13 @@ from OpenGL.GLU import *
 import sys, traceback, os
 from math import sin, pi
 
+from .abstractobjectmanager import AbstractObjectManager
+
 from .objectmanagers import get_managers
 from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import QObject, QPoint, Qt, pyqtSignal, pyqtSlot, QT_VERSION_STR
 from openalea.plantgl.gui.qt.QtGui import QFont, QFontMetrics, QImageWriter, QColor, QPainter, QPixmap
-from openalea.plantgl.gui.qt.QtWidgets import QAbstractItemView, QAction, QApplication, QDockWidget, QFileDialog, QLineEdit, QMenu, QMessageBox, QScrollArea, QVBoxLayout, QWidget, QLabel, QListView, QListWidget, QListWidgetItem
+from openalea.plantgl.gui.qt.QtWidgets import QAbstractItemView, QAction, QApplication, QDockWidget, QFileDialog, QLineEdit, QMenu, QMessageBox, QScrollArea, QVBoxLayout, QWidget, QLabel, QListView, QListWidget, QListWidgetItem, QSizePolicy
 
 
 def renderText(self, x, y, text, font = QFont(), color = None):
@@ -313,7 +315,8 @@ class ObjectPanelManager(QObject):
 
 
 from .objectpanelitem import ObjectPanelItem
-    
+from .objectpanelitem import ObjectPanelItemDelegate
+
 class DragListWidget(QListWidget):
 
     valueChanged = pyqtSignal(int)
@@ -321,31 +324,170 @@ class DragListWidget(QListWidget):
     AutomaticUpdate = pyqtSignal()
     renameRequest = pyqtSignal(int)
 
+
+    # TODO: this is for the delegate, which is not used yet.
+    # class variable for "editStarted" signal
+    editStarted = QtCore.pyqtSignal(name='editStarted')
+    # class variable for "editFinished" signal
+    editFinished = QtCore.pyqtSignal(name='editFinished')
+    delegate: ObjectPanelItemDelegate = None
+
     widgetList : dict[QListWidgetItem] = {}
-    
+
+    plugins: list[str, AbstractObjectManager] = list(get_managers().items())
+    menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
+
     def __init__(self, parent: QWidget = None, panelmanager: ObjectPanelManager = None) -> None:
         super().__init__(parent=parent)
         self.panelManager = panelmanager
+        self.delegate = ObjectPanelItemDelegate(parent=self)
+        self.delegate.editStarted.connect(self.editStarted)
+        self.delegate.editFinished.connect(self.editFinished)
+        self.setItemDelegate(self.delegate)
 
         self.setMinimumSize(200, 200)
-        # self.setFrameStyle(QFrame.Sunken | QFrame.StyledPanel)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAcceptDrops(True)
-        # self.viewport().acceptDrops(True)
         self.setDragEnabled(True)
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.MoveAction)
         self.setFlow(QListView.TopToBottom)
+        self.setEditTriggers(QAbstractItemView.DoubleClicked) #  | QAbstractItemView.EditKeyPressed
 
-        for i in range(0, 10):
+        for i in range(0, 3):
             self.widgetList[i] = ObjectPanelItem(parent=self)
-            dummyThumbnail = QPixmap("/home/jonathan/images/house.png")
+            dummyThumbnail = QPixmap("/home/levy/images/calli.gif")
             self.widgetList[i].setThumbnail(dummyThumbnail)
-            self.widgetList[i].setName(f"House #{i}")  
+            self.widgetList[i].setName(f"Calli #{i}")  
             self.widgetList[i].setSizeHint(self.widgetList[i].getWidget().sizeHint())
 
             self.setItemWidget(self.widgetList[i], self.widgetList[i].getWidget())
+        
+        # loading managers
+        print(self.plugins)
+        #  and this will take care of everything else:
+        self.setContextMenuPolicy(Qt.DefaultContextMenu) # this will call the event handler
+        self.createContextMenuActions()
+        self.menuActions.values()
+        for action in self.menuActions.values():
+            self.addAction(action)
 
-            # self.insert(self.widgetList[i])
+    def createContextMenu(self) -> QMenu:
+        """ define the context menu """
+        contextmenu = QMenu(self)
+        contextmenu.addMenu(self.newItemMenu)
+        contextmenu.addSeparator()
+        """
+        contextmenu.addAction(self.copyAction)
+        contextmenu.addAction(self.cutAction)
+        contextmenu.addAction(self.pasteAction)
+        contextmenu.addSeparator()
+        contextmenu.addAction(self.renameAction)
+        contextmenu.addAction(self.copyNameAction)
+        contextmenu.addSeparator()
+        contextmenu.addAction(self.deleteAction)
+        if self.hasSelection():
+            contextmenu.addSeparator()
+            itemmenu = contextmenu.addMenu('Transform')
+            itemmenu.addAction(self.resetAction)
+            manager,object = self.objects[self.selection]
+            manager.completeContextMenu(itemmenu,object,self)
+            if self.panelmanager :
+                panels = self.panelmanager.getObjectPanels()
+                if len(panels) > 1:
+                    contextmenu.addSeparator()
+                    sendToMenu = contextmenu.addMenu('Send To')
+                    for panel in panels:
+                        if not panel is self.dock:
+                            sendToAction = QAction(panel.name,contextmenu)
+                            sendToAction.triggered.connect(TriggerParamFunc(self.sendSelectionTo,panel.name))
+                            sendToMenu.addAction(sendToAction)
+                    sendToNewAction = QAction('New Panel',contextmenu)
+                    sendToNewAction.triggered.connect(self.sendSelectionToNewPanel)
+                    sendToMenu.addSeparator()
+                    sendToMenu.addAction(sendToNewAction)                
+        contextmenu.addSeparator()
+        if self.panelmanager:
+            panelmenu = self.panelmanager.completeMenu(contextmenu,self.dock)
+            panelmenu.addSeparator()
+            panelmenu.addAction(self.savePanelImageAction)
+        #contextmenu.addAction(self.newPanelAction)
+        """
+        return contextmenu
+            
+    def createContextMenuActions(self):
+        """ define the context menu """
+        self.menuActions["Edit"] = QAction('Edit',self)
+        f = QFont()
+        f.setBold(True)
+        self.menuActions["Edit"].setFont(f)
+        self.menuActions["Edit"].triggered.connect(self.editItem)
+
+        self.newItemMenu = QMenu("New item",self)
+        for mname, manager in self.plugins:
+            subtypes = manager.defaultObjectTypes()
+            if not subtypes is None and len(subtypes) == 1:
+                mname = subtypes[0]
+                subtypes = None
+            if subtypes is None:
+                self.newItemMenu.addAction(mname,TriggerParamFunc(self.createDefaultObject, manager) )
+            else:
+                subtypeMenu = self.newItemMenu.addMenu(mname)
+                for subtype in subtypes: 
+                    subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
+        """
+        self.copyAction = QAction('Copy',self)
+        self.copyAction.triggered.connect(self.copySelection)
+        self.cutAction = QAction('Cut',self)
+        self.cutAction.triggered.connect(self.cutSelection)
+        self.pasteAction = QAction('Paste',self)
+        self.pasteAction.triggered.connect(self.paste)
+        self.deleteAction = QAction('Delete',self)
+        self.deleteAction.triggered.connect(self.deleteSelection)
+        self.copyNameAction = QAction('Copy Name',self)
+        self.copyNameAction.triggered.connect(self.copySelectionName)
+        self.renameAction = QAction('Rename',self)
+        self.renameAction.triggered.connect(self.renameSelection)
+        self.resetAction = QAction('Reset',self)
+        self.resetAction.triggered.connect(self.resetSelection)
+        self.savePanelImageAction = QAction('Save Image',self)
+        self.savePanelImageAction.triggered.connect(self.saveImage)
+        """
+
+    def editItem(self, item: QListWidgetItem) -> None:
+        print(f"edit item: {item.getName()}")
+        return super().editItem(item)
+
+    def createDefaultObject(self, manager, subtype = None):
+        """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
+        item = ObjectPanelItem(parent=self)
+        # dummyThumbnail = QPixmap("/home/levy/images/calli.gif")
+        # item.setThumbnail(dummyThumbnail)
+        item.setName(f"Item Name")  
+        item.createLpyResource(manager, subtype)
+        item.setSizeHint(item.getWidget().sizeHint())
+        self.setItemWidget(item, item.getWidget())
+
+
+    active=True
+    def contextMenuEvent(self, event):
+        """ function defining actions to do according to the menu's button chosen"""
+        # selcond = not self.selection is None
+        contextmenu = self.createContextMenu()
+        self.newItemMenu.setEnabled(self.active)
+        # self.editAction.setEnabled(selcond)
+        """
+        self.copyAction.setEnabled(selcond)
+        self.cutAction.setEnabled(selcond)
+        self.pasteAction.setEnabled((not self.panelmanager is None) and self.panelmanager.hasClipboard() and self.active)
+        self.renameAction.setEnabled(selcond)
+        self.copyNameAction.setEnabled(selcond)
+        self.deleteAction.setEnabled(selcond)
+        self.resetAction.setEnabled(selcond)
+        """
+        contextmenu.exec_(event.globalPos())
+
+
 
 class ObjectListDisplay(QGLParentClass): 
     """ Display and edit a list of parameter objects """
@@ -1218,13 +1360,12 @@ class LpyObjectPanelDock (QDockWidget):
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout.setObjectName(name+"verticalLayout")
         
-        self.objectpanel = QScrollArea(self.dockWidgetContents)
-        self.view = ObjectListDisplay(self,panelmanager)
-        # self.view = DragListWidget(self, panelmanager)
+        # self.objectpanel = QFrame(self.dockWidgetContents)
+        # self.view = ObjectListDisplay(self,panelmanager)
+        self.view = DragListWidget(self, panelmanager)
+        self.objectpanel = self.view #objectpanel was the QScrollArea, but QListWidget inherits from QAbstractScrollArea, so you can use it directly.
         self.view.dock = self
         self.view.scroll = self.objectpanel
-        self.objectpanel.setWidget(self.view)
-        self.objectpanel.setWidgetResizable(True)
         self.objectpanel.setObjectName(name+"panelarea")
         
         self.verticalLayout.addWidget(self.objectpanel)
@@ -1236,8 +1377,8 @@ class LpyObjectPanelDock (QDockWidget):
         
         self.view.valueChanged.connect(self.__updateStatus)
         self.view.AutomaticUpdate.connect(self.__transmit_autoupdate)
-        self.view.selectionChanged.connect(self.endNameEditing)
-        # self.view.itemSelectionChanged.connect(self.endNameEditing)
+        # self.view.selectionChanged.connect(self.endNameEditing)
+        self.view.itemSelectionChanged.connect(self.endNameEditing)
         self.view.renameRequest.connect(self.displayName)
         self.objectNameEdit.editingFinished.connect(self.updateName)
         self.dockNameEdition = False
