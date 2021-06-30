@@ -94,6 +94,7 @@ class TriggerParamFunc:
         
 from .objectdialog import ObjectDialog
 
+# TODO: remove this, integrate it in the objectdialog...
 class ManagerDialogContainer (QObject):
     def __init__(self,panel,manager):
         QObject.__init__(self)
@@ -337,9 +338,15 @@ class DragListWidget(QListWidget):
     plugins: list[str, AbstractObjectManager] = list(get_managers().items())
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
 
+
     def __init__(self, parent: QWidget = None, panelmanager: ObjectPanelManager = None) -> None:
         super().__init__(parent=parent)
         self.panelManager = panelmanager
+        palette = QtGui.QPalette()
+        palette.setColor(QtGui.QPalette.Background, Qt.black)
+        self.setAutoFillBackground(True)
+        self.setPalette(palette)
+        
         self.delegate = ObjectPanelItemDelegate(parent=self)
         self.delegate.editStarted.connect(self.editStarted)
         self.delegate.editFinished.connect(self.editFinished)
@@ -352,15 +359,15 @@ class DragListWidget(QListWidget):
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.MoveAction)
         self.setFlow(QListView.TopToBottom)
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setEditTriggers(QAbstractItemView.DoubleClicked) #  | QAbstractItemView.EditKeyPressed
 
-        for i in range(0, 3):
-            self.widgetList[i] = ObjectPanelItem(parent=self)
+        for i in range(0, 1):
+            self.widgetList[i] = ObjectPanelItem(parent=self, panel=panelmanager)
             dummyThumbnail = QPixmap("/home/levy/images/calli.gif")
             self.widgetList[i].setThumbnail(dummyThumbnail)
             self.widgetList[i].setName(f"Calli #{i}")  
             self.widgetList[i].setSizeHint(self.widgetList[i].getWidget().sizeHint())
-
             self.setItemWidget(self.widgetList[i], self.widgetList[i].getWidget())
         
         # loading managers
@@ -371,6 +378,13 @@ class DragListWidget(QListWidget):
         self.menuActions.values()
         for action in self.menuActions.values():
             self.addAction(action)
+
+    def resizeEvent(self, e: QtGui.QResizeEvent) -> None:
+        if e.size().width() > e.size().height() and self.flow() == QListView.TopToBottom:
+            self.setFlow(QListView.LeftToRight)
+        if e.size().width() < e.size().height() and self.flow() == QListView.LeftToRight:
+            self.setFlow(QListView.TopToBottom)
+        return super().resizeEvent(e)
 
     def createContextMenu(self) -> QMenu:
         """ define the context menu """

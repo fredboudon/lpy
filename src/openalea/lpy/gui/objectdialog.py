@@ -4,7 +4,7 @@ try:
 except:
     py2exe_release = False
 
-from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
+from .abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
 from openalea.plantgl.gui.qt.QtWidgets import QApplication, QCheckBox, QDialog, QHBoxLayout, QLayout, QMenuBar, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
@@ -123,4 +123,32 @@ class ObjectDialog(QDialog):
 
     def closeEvent(self,event):
         QDialog.closeEvent(self,event)
+
+
+    def init(self):
+        if not self.editor:
+            self.editorDialog = ObjectDialog(self.panel)
+            self.editor = self.manager.getEditor(self.editorDialog)
+            if not self.editor: return
+            self.editorDialog.setupUi(self.editor, self.manager)
+            self.editorDialog.setWindowTitle(self.manager.typename+' Editor')
+            self.manager.fillEditorMenu(self.editorDialog.menu(),self.editor)
+            self.editorDialog.valueChanged.connect(self.__transmit_valueChanged__)
+            self.editorDialog.hidden.connect(self.endEditionEvent)
+            self.editorDialog.AutomaticUpdate.connect(self.__transmit_autoUpdate__)
+            
+    def startObjectEdition(self,obj,id):
+        """ used by panel. ask for object edition to start. Use getEditor and  setObjectToEditor """
+        self.editedobjectid = id
+        if not self.editor:
+            self.init()
+            if not self.editor:
+                QMessageBox.warning(self.panel,"Cannot edit","Cannot edit object ! Python module (PyQGLViewer) is certainly missing!")
+                return
+        self.manager.setObjectToEditor(self.editor,obj)
+        self.editorDialog.setWindowTitle(self.manager.typename+' Editor - '+self.manager.getName(obj))
+        self.editorDialog.hasChanged = False
+        self.editorDialog.show()
+        self.editorDialog.activateWindow()
+        self.editorDialog.raise_()
 
