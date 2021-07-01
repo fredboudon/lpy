@@ -79,18 +79,19 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         self.setSizeHint(self._widget.size())
         self.setFlags(self.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
         self.createLpyResource(manager, subtype)
-        if self._manager != None:
-            self.dialog = ObjectDialog(parent)
-            self.dialog.setupUi(self._manager.getEditor(self.dialog), self._manager)
-            self.dialog.setWindowTitle(f"{self._manager.typename} Editor")
-            self.dialog.setMenu(self._manager.editorMenu(self._manager.getEditor(self.dialog)))
-
         self.print()
 
     def print(self):
         print(f"{self.getName()}\n\t_widget: {self._widget}\n\t_item: {self._item}\n\t_manager: {self._manager}")
 
     def editItem(self):
+        if self._manager != None:
+            self.dialog = ObjectDialog()
+            editor: AbstractObjectManager = self._manager.getEditor(self.dialog)
+            self.dialog.setupUi(editor, self._manager)
+            self.dialog.setWindowTitle(f"{self._manager.typename} Editor")
+            self._manager.fillEditorMenu(self.dialog.menu(), editor)
+
         if self.dialog != None and self._manager != None:
             print(f"edit item: {self.getName()}")
             self._manager.setObjectToEditor(self._manager.getEditor(self.dialog), self._item)
