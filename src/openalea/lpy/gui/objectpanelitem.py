@@ -1,13 +1,12 @@
 
-from PyQt5.QtWidgets import QWidget
 from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import Qt
 
 from .objectdialog import ObjectDialog
 from .abstractobjectmanager import AbstractObjectManager
-OBJECTPANELITEM_THUMBNAIL_SIZE = QtCore.QSize(50, 50)
-THUMBNAIL_HEIGHT=96
-THUMBNAIL_WIDTH=96
+# OBJECTPANELITEM_THUMBNAIL_SIZE = QtCore.QSize(50, 50)
+THUMBNAIL_HEIGHT=150
+THUMBNAIL_WIDTH=150
 
 class QCustomQWidget (QtGui.QWidget):
 
@@ -66,38 +65,38 @@ class QCustomQWidget (QtGui.QWidget):
 
 class ObjectPanelItem(QtWidgets.QListWidgetItem):
     
-    _parent: QWidget = None
+    _parent: QtWidgets.QWidget = None
     _widget: QCustomQWidget = None # how to display item
     _item: object = None # item
     _manager: AbstractObjectManager = None # how to manage (and ultimately edit) item
+    dialog: ObjectDialog = None
 
-
-    def __init__ (self, parent = None, panel = None):
+    def __init__ (self, parent = None, manager: AbstractObjectManager = None, subtype: str = None):
         super(ObjectPanelItem, self).__init__(parent)
         self._widget = QCustomQWidget(parent, self)
-        self._parent = parent #needed as dialog parent
+        self._parent = parent #needed as self.dialog parent
         self._widget.setTextDown("Text up")
         self.setSizeHint(self._widget.size())
         self.setFlags(self.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
+        self.createLpyResource(manager, subtype)
+        if self._manager != None:
+            self.dialog = ObjectDialog(parent)
+            self.dialog.setupUi(self._manager.getEditor(self.dialog), self._manager)
+            self.dialog.setWindowTitle(f"{self._manager.typename} Editor")
+            self.dialog.setMenu(self._manager.editorMenu(self._manager.getEditor(self.dialog)))
+
+        self.print()
 
     def print(self):
         print(f"{self.getName()}\n\t_widget: {self._widget}\n\t_item: {self._item}\n\t_manager: {self._manager}")
 
     def editItem(self):
-        print(f"edit item: {self.getName()}")
-        if self._manager == None:
-            QtGui.QMessageBox.warning(self._parent,"Cannot edit","Cannot edit object ! Python module (PyQGLViewer) is certainly missing!")
-            return
-        dialog = ObjectDialog(self._parent)
-        dialog.setupUi(self._manager.getEditor(dialog), self._manager)
-        dialog.setWindowTitle(f"{self._manager.typename} Editor")
-        self._manager.fillEditorMenu(dialog.menu(),self._manager.getEditor(dialog))
-        self.editedobjectid = id
-        self._manager.setObjectToEditor(self._manager.getEditor(dialog), self._item)
-        dialog.setWindowTitle(f"{self._manager.typename} Editor - {self.getName()}")
-        dialog.show()
-        dialog.activateWindow()
-        dialog.raise_()
+        if self.dialog != None and self._manager != None:
+            print(f"edit item: {self.getName()}")
+            self._manager.setObjectToEditor(self._manager.getEditor(self.dialog), self._item)
+            self.dialog.setWindowTitle(f"{self._manager.typename} Editor - {self.getName()}")
+            self.dialog.thumbnailChanged.connect(self.setThumbnail)
+            self.dialog.show()
 
     def getWidget(self) -> QtWidgets.QWidget:
         return self._widget
@@ -114,11 +113,12 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
     def setName(self, text) -> None:
         self._widget.textUpQLabel.setText(text)
 
-    def createLpyResource(self, manager: AbstractObjectManager, subtype: str):
-        self._item = manager.createDefaultObject(subtype)
-        self._manager = manager
-        self._widget.textDownQLabel.setText(f"{manager} - {subtype}")
-        self._widget.textUpQLabel.setText(f"parameter")
+    def createLpyResource(self, manager: AbstractObjectManager = None, subtype: str = None):
+        if manager != None:
+            self._item = manager.createDefaultObject(subtype)
+            self._manager = manager
+            self._widget.textDownQLabel.setText(f"{manager} - {subtype}")
+            self._widget.textUpQLabel.setText(f"parameter")
 
 """
 Note: this delegate doesn't do anything yet, I don't know how to use it yet (or if it's useful, fwiw)

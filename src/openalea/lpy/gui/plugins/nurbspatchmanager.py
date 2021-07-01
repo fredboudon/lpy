@@ -66,7 +66,18 @@ class NurbsPatchManager(AbstractPglObjectManager):
         menu.addAction('Custom',lambda : editor.createCurstomDefaultObject())
         menu.addSeparator()
         menu.addAction('rescale',lambda : editor.rescaleObject())
-        menubar.addMenu(menu)          
+        menubar.addMenu(menu)       
+
+    def editorMenu(self, editor) -> list[QtWidgets.QMenu]:
+        """ Function call to fill the menu of the editor """
+        menu = QtWidgets.QMenu('Init', editor)
+        menu.addAction('3x3',lambda : editor.createDefaultObject(3,3))
+        menu.addAction('4x4',lambda : editor.createDefaultObject(4,4))
+        menu.addAction('5x5',lambda : editor.createDefaultObject(5,5))
+        menu.addAction('Custom',lambda : editor.createCurstomDefaultObject())
+        menu.addSeparator()
+        menu.addAction('rescale',lambda : editor.rescaleObject())
+        return [menu]
 
 def get_managers():
     return NurbsPatchManager()

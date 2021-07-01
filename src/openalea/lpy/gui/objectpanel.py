@@ -363,7 +363,7 @@ class DragListWidget(QListWidget):
         self.setEditTriggers(QAbstractItemView.DoubleClicked) #  | QAbstractItemView.EditKeyPressed
 
         for i in range(0, 1):
-            self.widgetList[i] = ObjectPanelItem(parent=self, panel=panelmanager)
+            self.widgetList[i] = ObjectPanelItem(parent=self)
             dummyThumbnail = QPixmap("/home/levy/images/calli.gif")
             self.widgetList[i].setThumbnail(dummyThumbnail)
             self.widgetList[i].setName(f"Calli #{i}")  
@@ -474,11 +474,10 @@ class DragListWidget(QListWidget):
 
     def createDefaultObject(self, manager, subtype = None):
         """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
-        item = ObjectPanelItem(parent=self)
+        item = ObjectPanelItem(parent=self, manager=manager, subtype=subtype)
         # dummyThumbnail = QPixmap("/home/levy/images/calli.gif")
         # item.setThumbnail(dummyThumbnail)
         item.setName(f"Item Name")  
-        item.createLpyResource(manager, subtype)
         item.setSizeHint(item.getWidget().sizeHint())
         self.setItemWidget(item, item.getWidget())
 

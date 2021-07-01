@@ -72,6 +72,13 @@ class FunctionManager(AbstractPglObjectManager):
         menu.addAction('White',lambda : editor.applyTheme(editor.WHITE_THEME))
         menubar.addMenu(menu)
 
+    def editorMenu(self, editor) -> list[QtWidgets.QMenu]:
+        """ Function call to fill the menu of the editor """
+        menu = QtWidgets.QMenu('Theme',editor)
+        menu.addAction('Black',lambda : editor.applyTheme(editor.BLACK_THEME))
+        menu.addAction('White',lambda : editor.applyTheme(editor.WHITE_THEME))
+        return [menu]
+
     def to_json(self, obj):
         import openalea.plantgl.algo.jsonrep  as jr
         res = jr.to_json_rep(obj)

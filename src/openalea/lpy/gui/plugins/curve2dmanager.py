@@ -105,6 +105,19 @@ class Curve2DManager(AbstractPglObjectManager):
         menu.addAction('Close',lambda : editor.closeImage())
         menubar.addMenu(menu)
 
+    def editorMenu(self, editor) -> list[QtWidgets.QMenu]:
+        """ Function call to fill the menu of the editor """
+        menu0 = QtWidgets.QMenu('Curve', editor)
+        menu0.addAction('Flip Horizontally',TriggerParamFunc(self.flipHorizontallyEditor,editor))
+        menu0.addAction('Flip Vertically',TriggerParamFunc(self.flipVerticallyEditor,editor))
+        menu1 = QtWidgets.QMenu('Theme', editor)
+        menu1.addAction('Black',lambda : editor.applyTheme(editor.BLACK_THEME))
+        menu1.addAction('White',lambda : editor.applyTheme(editor.WHITE_THEME))
+        menu2 = QtWidgets.QMenu('Image', editor)
+        menu2.addAction('Open',lambda : editor.openImage())
+        menu2.addAction('Close',lambda : editor.closeImage())
+        return [menu0, menu1, menu2]
+
     def completeContextMenu(self,menu,obj,widget):
         menu.addAction('Flip Horizontally',TriggerParamFunc(self.flipHorizontally,obj,widget))
         menu.addAction('Flip Vertically',TriggerParamFunc(self.flipVertically,obj,widget))

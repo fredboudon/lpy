@@ -4,6 +4,8 @@ try:
 except:
     py2exe_release = False
 
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QMenu
 from .abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
@@ -13,6 +15,7 @@ from openalea.plantgl.gui.qt.QtWidgets import QApplication, QCheckBox, QDialog, 
 class ObjectDialog(QDialog):
     """the class that will create dialog between the panel and the editor window"""
     valueChanged = pyqtSignal()
+    thumbnailChanged = pyqtSignal(QPixmap)
     hidden = pyqtSignal()
     AutomaticUpdate = pyqtSignal(bool)
 
@@ -84,13 +87,22 @@ class ObjectDialog(QDialog):
     def menu(self):
         return self._menu
 
+    def setMenu(self, listOfMenus: list[QMenu]):
+        for menu in listOfMenus:
+            print(menu)
+            self._menu.addMenu(menu)
+
     def __screenshot(self):
-        
         qpixmap = self.manager.getPixmapThumbnail(self.objectView)
-        import time
-        filename = f"{time.time()}"
-        res = qpixmap.save(f"{filename}.png")
-        print(f"saving status {filename}.png : {res}")
+        # import time
+        # filename = f"{time.time()}"
+        # res = qpixmap.save(f"{filename}.png")
+        # print(f"saving status {filename}.png : {res}")
+        self.thumbnailChanged.emit(qpixmap)
+
+    def __updateThumbail(self):
+        qpixmap = self.manager.getPixmapThumbnail(self.objectView)
+        self.thumbnailChanged.emit(qpixmap)
     
     def __valueChanged(self):
         if self.automaticUpdate:
@@ -100,10 +112,12 @@ class ObjectDialog(QDialog):
 
     def __apply(self):
         self.valueChanged.emit()
+        self.__updateThumbail()
         self.hasChanged = False
         
     def __ok(self):
         self.valueChanged.emit()
+        self.__updateThumbail()
         self.hasChanged = False
         self.accept()
         self.close()
@@ -123,32 +137,3 @@ class ObjectDialog(QDialog):
 
     def closeEvent(self,event):
         QDialog.closeEvent(self,event)
-
-
-    def init(self):
-        if not self.editor:
-            self.editorDialog = ObjectDialog(self.panel)
-            self.editor = self.manager.getEditor(self.editorDialog)
-            if not self.editor: return
-            self.editorDialog.setupUi(self.editor, self.manager)
-            self.editorDialog.setWindowTitle(self.manager.typename+' Editor')
-            self.manager.fillEditorMenu(self.editorDialog.menu(),self.editor)
-            self.editorDialog.valueChanged.connect(self.__transmit_valueChanged__)
-            self.editorDialog.hidden.connect(self.endEditionEvent)
-            self.editorDialog.AutomaticUpdate.connect(self.__transmit_autoUpdate__)
-            
-    def startObjectEdition(self,obj,id):
-        """ used by panel. ask for object edition to start. Use getEditor and  setObjectToEditor """
-        self.editedobjectid = id
-        if not self.editor:
-            self.init()
-            if not self.editor:
-                QMessageBox.warning(self.panel,"Cannot edit","Cannot edit object ! Python module (PyQGLViewer) is certainly missing!")
-                return
-        self.manager.setObjectToEditor(self.editor,obj)
-        self.editorDialog.setWindowTitle(self.manager.typename+' Editor - '+self.manager.getName(obj))
-        self.editorDialog.hasChanged = False
-        self.editorDialog.show()
-        self.editorDialog.activateWindow()
-        self.editorDialog.raise_()
-
