@@ -94,7 +94,6 @@ class TriggerParamFunc:
         
 from .objectdialog import ObjectDialog
 
-# TODO: remove this, integrate it in the objectdialog...
 class ManagerDialogContainer (QObject):
     def __init__(self,panel,manager):
         QObject.__init__(self)
@@ -316,7 +315,6 @@ class ObjectPanelManager(QObject):
 
 
 from .objectpanelitem import ObjectPanelItem
-from .objectpanelitem import ObjectPanelItemDelegate
 
 class DragListWidget(QListWidget):
 
@@ -325,19 +323,9 @@ class DragListWidget(QListWidget):
     AutomaticUpdate = pyqtSignal()
     renameRequest = pyqtSignal(int)
 
-
-    # TODO: this is for the delegate, which is not used yet.
-    # class variable for "editStarted" signal
-    editStarted = QtCore.pyqtSignal(name='editStarted')
-    # class variable for "editFinished" signal
-    editFinished = QtCore.pyqtSignal(name='editFinished')
-    delegate: ObjectPanelItemDelegate = None
-
     widgetList : dict[QListWidgetItem] = {}
-
-    plugins: list[str, AbstractObjectManager] = list(get_managers().items())
+    plugins: dict[AbstractObjectManager] = {}
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
-
 
     def __init__(self, parent: QWidget = None, panelmanager: ObjectPanelManager = None) -> None:
         super().__init__(parent=parent)
@@ -346,13 +334,8 @@ class DragListWidget(QListWidget):
         palette.setColor(QtGui.QPalette.Background, Qt.black)
         self.setAutoFillBackground(True)
         self.setPalette(palette)
-        
-        self.delegate = ObjectPanelItemDelegate(parent=self)
-        self.delegate.editStarted.connect(self.editStarted)
-        self.delegate.editFinished.connect(self.editFinished)
-        self.setItemDelegate(self.delegate)
-
-        self.setMinimumSize(200, 200)
+    
+        self.setMinimumSize(96, 96)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAcceptDrops(True)
         self.setDragEnabled(True)
@@ -362,16 +345,23 @@ class DragListWidget(QListWidget):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setEditTriggers(QAbstractItemView.DoubleClicked) #  | QAbstractItemView.EditKeyPressed
 
-        for i in range(0, 1):
-            self.widgetList[i] = ObjectPanelItem(parent=self)
-            dummyThumbnail = QPixmap("/home/levy/images/calli.gif")
-            self.widgetList[i].setThumbnail(dummyThumbnail)
-            self.widgetList[i].setName(f"Calli #{i}")  
-            self.widgetList[i].setSizeHint(self.widgetList[i].getWidget().sizeHint())
-            self.setItemWidget(self.widgetList[i], self.widgetList[i].getWidget())
-        
-        # loading managers
+
+        self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())
+
         print(self.plugins)
+
+        for mname, manager in self.plugins:
+            subtypes = manager.defaultObjectTypes()
+            if not subtypes is None and len(subtypes) == 1:
+                mname = subtypes[0]
+                subtypes = None
+            if subtypes is None:
+                self.createDefaultObject(manager)
+            else:
+                for subtype in subtypes: 
+                    # subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
+                    self.createDefaultObject(manager, subtype)
+
         #  and this will take care of everything else:
         self.setContextMenuPolicy(Qt.DefaultContextMenu) # this will call the event handler
         self.createContextMenuActions()
@@ -382,8 +372,14 @@ class DragListWidget(QListWidget):
     def resizeEvent(self, e: QtGui.QResizeEvent) -> None:
         if e.size().width() > e.size().height() and self.flow() == QListView.TopToBottom:
             self.setFlow(QListView.LeftToRight)
+            print("qlist let to right")
+            for i in range(0, self.count()):
+                self.item(i).setLeftToRight()
         if e.size().width() < e.size().height() and self.flow() == QListView.LeftToRight:
             self.setFlow(QListView.TopToBottom)
+            for i in range(0, self.count()):
+                self.item(i).setTopToBottom()
+            print("qlist top to bottom")
         return super().resizeEvent(e)
 
     def createContextMenu(self) -> QMenu:
@@ -477,8 +473,8 @@ class DragListWidget(QListWidget):
         item = ObjectPanelItem(parent=self, manager=manager, subtype=subtype)
         # dummyThumbnail = QPixmap("/home/levy/images/calli.gif")
         # item.setThumbnail(dummyThumbnail)
-        item.setName(f"Item Name")  
-        item.setSizeHint(item.getWidget().sizeHint())
+        # item.setSizeHint(item.getWidget().sizeHint())
+        item.setName(f"Item Name")
         self.setItemWidget(item, item.getWidget())
 
 
@@ -1499,6 +1495,16 @@ class LpyObjectPanelDock (QDockWidget):
             self.previousVisibility = info['visible']
             self.setVisible(info['visible'])
 
+"""
+This class is a store that instantiate all editors, only once, with a unique parent.
+Then dialogs will query the editor to get and this will send it
+"""
+class LpyEditorStore(QObject):
+
+    def __init__(self, parent: QObject):
+        super(LpyEditorStore, self).__init__(parent)
+
+    
 
 def main():
     qapp = QApplication([])

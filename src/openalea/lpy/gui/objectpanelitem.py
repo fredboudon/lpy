@@ -1,4 +1,7 @@
 
+from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QSizePolicy
 from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import Qt
 
@@ -7,36 +10,39 @@ from .abstractobjectmanager import AbstractObjectManager
 # OBJECTPANELITEM_THUMBNAIL_SIZE = QtCore.QSize(50, 50)
 THUMBNAIL_HEIGHT=150
 THUMBNAIL_WIDTH=150
+WIDGET_MIN_ORTHO_SIZE=200 #px
+
 
 class QCustomQWidget (QtGui.QWidget):
 
     menuActions: dict[QtWidgets.QAction] = {}
     panelItem = None # class defined afterwards...
 
+    pixmap: QPixmap = None
+
     def __init__ (self, parent = None, panelItem = None):
-        
         super(QCustomQWidget, self).__init__(parent)
+
+
         self.textQVBoxLayout = QtGui.QVBoxLayout()
         self.textUpQLabel    = QtGui.QLabel()
         self.textDownQLabel  = QtGui.QLabel()
-        self.textQVBoxLayout.addWidget(self.textUpQLabel)
-        self.textQVBoxLayout.addWidget(self.textDownQLabel)
-        self.allQHBoxLayout  = QtGui.QHBoxLayout()
         self.iconQLabel      = QtGui.QLabel()
-        self.allQHBoxLayout.addWidget(self.iconQLabel, 0)
-        self.allQHBoxLayout.addLayout(self.textQVBoxLayout, 1)
-        self.setLayout(self.allQHBoxLayout)
-        # setStyleSheet
-        self.textUpQLabel.setStyleSheet('''
-            color: rgb(0, 0, 255);
-        ''')
-        self.textDownQLabel.setStyleSheet('''
-            color: rgb(255, 0, 0);
-        ''')
-        self.setToolTip(self.textDownQLabel.text())
+
+        self.textUpQLabel.setWordWrap(True)
+
+        self.textQVBoxLayout.addWidget(self.textUpQLabel)
+        self.textQVBoxLayout.addWidget(self.iconQLabel)
+        self.textQVBoxLayout.setAlignment(self.textUpQLabel, Qt.AlignTop)
+        # self.textQVBoxLayout.setAlignment(self.iconQLabel, Qt.AlignTop)
+        # self.textQVBoxLayout.setStretchFactor(self.textUpQLabel, 0)
+        # self.textQVBoxLayout.setStretchFactor(self.textUpQLabel, 1)
+        self.setLayout(self.textQVBoxLayout)
+
+        # the tooltip doesn't work, dunno why
+        self.setToolTip(self.textUpQLabel.text())
 
         self.setContextMenuPolicy(Qt.ActionsContextMenu)
-
         self.menuActions["Edit"] = QtWidgets.QAction('Edit',self)
         f = QtGui.QFont()
         f.setBold(True)
@@ -45,7 +51,23 @@ class QCustomQWidget (QtGui.QWidget):
         self.menuActions["Edit"].triggered.connect(self.panelItem.editItem)
         for action in self.menuActions.values():
             self.addAction(action)
-    
+
+        self.setLeftToRight()
+        
+    def setLeftToRight(self):
+        self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
+        self.setMinimumWidth(WIDGET_MIN_ORTHO_SIZE)
+        self.setMinimumHeight(1)
+        self.textUpQLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        print("setLeftToRight")
+
+    def setTopToBottom(self):
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.setMinimumHeight(WIDGET_MIN_ORTHO_SIZE)
+        self.setMinimumWidth(0)
+        self.textUpQLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        print("setTopToBottom")
+
     def mouseDoubleClickEvent(self, a0: QtGui.QMouseEvent) -> None:
         self.panelItem.editItem()
         a0.accept()
@@ -56,11 +78,19 @@ class QCustomQWidget (QtGui.QWidget):
     def setTextDown (self, text: str):
         self.textDownQLabel.setText(text)
 
-    def setIcon (self, imagePath: str):
-        self.iconQLabel.setPixmap(QtGui.QPixmap(imagePath).scaled(THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, QtCore.Qt.KeepAspectRatio))
-
     def setIcon (self, pixmap: QtGui.QPixmap):
-        self.iconQLabel.setPixmap(pixmap.scaled(THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, QtCore.Qt.KeepAspectRatio))
+        self.pixmap = pixmap # we store the original, unscaled pixmap
+        tem_pixmap = pixmap.scaled(WIDGET_MIN_ORTHO_SIZE, WIDGET_MIN_ORTHO_SIZE, QtCore.Qt.KeepAspectRatio)
+        self.iconQLabel.setPixmap(tem_pixmap)
+    
+    def resizeEvent(self, a0: QtGui.QResizeEvent) -> None:
+        if self.pixmap:
+            width = self.iconQLabel.width()
+            height = self.iconQLabel.height()
+            temp_pixmap = self.pixmap.scaled(width, height, QtCore.Qt.KeepAspectRatio)
+            self.iconQLabel.setPixmap(temp_pixmap)
+            print(width, height)
+        return super().resizeEvent(a0)
 
 
 class ObjectPanelItem(QtWidgets.QListWidgetItem):
@@ -69,23 +99,35 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
     _widget: QCustomQWidget = None # how to display item
     _item: object = None # item
     _manager: AbstractObjectManager = None # how to manage (and ultimately edit) item
-    dialog: ObjectDialog = None
+    _type: str = None
+    _subtype: str = None
 
     def __init__ (self, parent = None, manager: AbstractObjectManager = None, subtype: str = None):
         super(ObjectPanelItem, self).__init__(parent)
-        self._widget = QCustomQWidget(parent, self)
-        self._parent = parent #needed as self.dialog parent
-        self._widget.setTextDown("Text up")
-        self.setSizeHint(self._widget.size())
-        self.setFlags(self.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
         self.createLpyResource(manager, subtype)
+        self._widget = QCustomQWidget(parent, self)
+        self._widget.setIcon(QtGui.QPixmap("/home/jonathan/lpy/dummy.png"))
+        self._widget.setTextUp("New Item with an awesomely long name look at that name seriously could you imagine you would put such a long name for such a tiny item?")
+        self._widget.setTextDown(manager.getName(self._item))
+        self.setSizeHint(self._widget.size())
+
+        self._parent = parent #needed as self.dialog parent
+        self.setFlags(self.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
         self.print()
 
     def print(self):
         print(f"{self.getName()}\n\t_widget: {self._widget}\n\t_item: {self._item}\n\t_manager: {self._manager}")
 
+    def setTopToBottom(self):
+        self._widget.setTopToBottom()
+    def setLeftToRight(self):
+        self._widget.setLeftToRight()
+
     def editItem(self):
-        if self._manager != None:
+
+        dialog = ObjectDialog(self)
+
+        if self.dialog == None:
             self.dialog = ObjectDialog()
             editor: AbstractObjectManager = self._manager.getEditor(self.dialog)
             self.dialog.setupUi(editor, self._manager)
@@ -109,35 +151,14 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         self._widget.setIcon(thumbnail)
 
     def getName(self) -> str:
-        return self._widget.textUpQLabel.text()
+        return self._widget.textDownQLabel.text()
 
-    def setName(self, text) -> None:
-        self._widget.textUpQLabel.setText(text)
+    def setName(self, text: str) -> None:
+        self._widget.textDownQLabel.setText(text)
 
     def createLpyResource(self, manager: AbstractObjectManager = None, subtype: str = None):
         if manager != None:
             self._item = manager.createDefaultObject(subtype)
             self._manager = manager
-            self._widget.textDownQLabel.setText(f"{manager} - {subtype}")
-            self._widget.textUpQLabel.setText(f"parameter")
-
-"""
-Note: this delegate doesn't do anything yet, I don't know how to use it yet (or if it's useful, fwiw)
-"""
-class ObjectPanelItemDelegate(QtWidgets.QStyledItemDelegate):
-
-    # class variable for "editStarted" signal, with QModelIndex parameter
-    editStarted = QtCore.pyqtSignal(QtCore.QModelIndex, name='editStarted')
-    # class variable for "editFinished" signal, with QModelIndex parameter
-    editFinished = QtCore.pyqtSignal(QtCore.QModelIndex, name='editFinished')
-
-    def createEditor(self, parent: QtWidgets.QWidget, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex) -> QtWidgets.QWidget:
-        editor = super().createEditor(parent, option, index)
-        print(f"model: {index}")
-        if editor is not None:
-            self.editStarted.emit(index)
-        return editor
-
-    def destroyEditor(self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex) -> None:
-        self.editFinished.emit(index)
-        return super().destroyEditor(editor, index)
+            # self._widget.textDownQLabel.setText(f"{manager} - {subtype}")
+            # self._widget.textUpQLabel.setText(f"parameter")
