@@ -323,6 +323,7 @@ class DragListWidget(QListWidget):
     AutomaticUpdate = pyqtSignal()
     renameRequest = pyqtSignal(int)
 
+    panelManager: ObjectPanelManager = None
     widgetList : dict[QListWidgetItem] = {}
     plugins: dict[AbstractObjectManager] = {}
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
@@ -342,9 +343,10 @@ class DragListWidget(QListWidget):
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.MoveAction)
         self.setFlow(QListView.TopToBottom)
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.setEditTriggers(QAbstractItemView.DoubleClicked) #  | QAbstractItemView.EditKeyPressed
 
+        ## I think these don't work in QListWidget, only in QListView.
+        # self.setSelectionMode(QAbstractItemView.ExtendedSelection) 
+        # self.setEditTriggers(QAbstractItemView.DoubleClicked) #  | QAbstractItemView.EditKeyPressed
 
         self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())
 
@@ -375,6 +377,7 @@ class DragListWidget(QListWidget):
             print("qlist let to right")
             for i in range(0, self.count()):
                 self.item(i).setLeftToRight()
+        
         if e.size().width() < e.size().height() and self.flow() == QListView.LeftToRight:
             self.setFlow(QListView.TopToBottom)
             for i in range(0, self.count()):
@@ -471,11 +474,8 @@ class DragListWidget(QListWidget):
     def createDefaultObject(self, manager, subtype = None):
         """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
         item = ObjectPanelItem(parent=self, manager=manager, subtype=subtype)
-        # dummyThumbnail = QPixmap("/home/levy/images/calli.gif")
-        # item.setThumbnail(dummyThumbnail)
-        # item.setSizeHint(item.getWidget().sizeHint())
         item.setName(f"Item Name")
-        self.setItemWidget(item, item.getWidget())
+        self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
 
 
     active=True
@@ -1494,17 +1494,6 @@ class LpyObjectPanelDock (QDockWidget):
         if 'visible' in info:
             self.previousVisibility = info['visible']
             self.setVisible(info['visible'])
-
-"""
-This class is a store that instantiate all editors, only once, with a unique parent.
-Then dialogs will query the editor to get and this will send it
-"""
-class LpyEditorStore(QObject):
-
-    def __init__(self, parent: QObject):
-        super(LpyEditorStore, self).__init__(parent)
-
-    
 
 def main():
     qapp = QApplication([])

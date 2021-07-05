@@ -1,11 +1,11 @@
 
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtWidgets import QDialog, QInputDialog, QSizePolicy, QWidget
 from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import Qt
 
-from .objectdialog import ObjectDialog
+from .objecteditordialog import ObjectEditorDialog
 from .abstractobjectmanager import AbstractObjectManager
 # OBJECTPANELITEM_THUMBNAIL_SIZE = QtCore.QSize(50, 50)
 THUMBNAIL_HEIGHT=150
@@ -23,6 +23,7 @@ class QCustomQWidget (QtGui.QWidget):
     def __init__ (self, parent = None, panelItem = None):
         super(QCustomQWidget, self).__init__(parent)
 
+        self.panelItem = panelItem
 
         self.textQVBoxLayout = QtGui.QVBoxLayout()
         self.textUpQLabel    = QtGui.QLabel()
@@ -42,13 +43,15 @@ class QCustomQWidget (QtGui.QWidget):
         # the tooltip doesn't work, dunno why
         self.setToolTip(self.textUpQLabel.text())
 
-        self.setContextMenuPolicy(Qt.ActionsContextMenu)
-        self.menuActions["Edit"] = QtWidgets.QAction('Edit',self)
         f = QtGui.QFont()
         f.setBold(True)
+
+        self.setContextMenuPolicy(Qt.ActionsContextMenu)
+        self.menuActions["Edit"] = QtWidgets.QAction('Edit',self)
         self.menuActions["Edit"].setFont(f)
-        self.panelItem = panelItem
         self.menuActions["Edit"].triggered.connect(self.panelItem.editItem)
+        self.menuActions["Rename"] = QtWidgets.QAction('Rename',self)
+        self.menuActions["Rename"].triggered.connect(self.panelItem.renameItem)
         for action in self.menuActions.values():
             self.addAction(action)
 
@@ -89,7 +92,7 @@ class QCustomQWidget (QtGui.QWidget):
             height = self.iconQLabel.height()
             temp_pixmap = self.pixmap.scaled(width, height, QtCore.Qt.KeepAspectRatio)
             self.iconQLabel.setPixmap(temp_pixmap)
-            print(width, height)
+
         return super().resizeEvent(a0)
 
 
@@ -107,12 +110,23 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         self.createLpyResource(manager, subtype)
         self._widget = QCustomQWidget(parent, self)
         self._widget.setIcon(QtGui.QPixmap("/home/jonathan/lpy/dummy.png"))
-        self._widget.setTextUp("New Item with an awesomely long name look at that name seriously could you imagine you would put such a long name for such a tiny item?")
+        self._widget.setTextUp(f"{manager.__class__}")
         self._widget.setTextDown(manager.getName(self._item))
-        self.setSizeHint(self._widget.size())
 
         self._parent = parent #needed as self.dialog parent
         self.setFlags(self.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
+
+
+        ## these display roles are used by the default delegate (internal delegate of QListWidget) to display default data.
+        ## we use a custom widget so we shouldn't set them.
+        # self.setData(Qt.DisplayRole, self.getName())
+        # self.setData(Qt.DecorationRole, self.getThumbnail())
+
+        ## I still set the roles SizeHintRole (it does the same as self.setSizeHint())
+        ## and role UserRole could be used to access data from QListWidget too, so that may be handy some day.
+        ## (at least it was planned that way for QListViews and QListWidgets.)
+        self.setData(Qt.SizeHintRole, self._widget.size())
+        self.setData(Qt.UserRole, self._item)
         self.print()
 
     def print(self):
@@ -122,24 +136,25 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         self._widget.setTopToBottom()
     def setLeftToRight(self):
         self._widget.setLeftToRight()
+    
+    def renameItem(self):
+        dialog = QInputDialog(self._parent)
+        dialog.setInputMode(QInputDialog.TextInput)
+        dialog.setTextValue(self.getName())
+        dialog.setLabelText("Rename item:")
+        dialog.textValueSelected.connect(self.setName) #textValueSelected = OK button pressed
+        dialog.show()
 
     def editItem(self):
 
-        dialog = ObjectDialog(self)
-
-        if self.dialog == None:
-            self.dialog = ObjectDialog()
-            editor: AbstractObjectManager = self._manager.getEditor(self.dialog)
-            self.dialog.setupUi(editor, self._manager)
-            self.dialog.setWindowTitle(f"{self._manager.typename} Editor")
-            self._manager.fillEditorMenu(self.dialog.menu(), editor)
-
-        if self.dialog != None and self._manager != None:
-            print(f"edit item: {self.getName()}")
-            self._manager.setObjectToEditor(self._manager.getEditor(self.dialog), self._item)
-            self.dialog.setWindowTitle(f"{self._manager.typename} Editor - {self.getName()}")
-            self.dialog.thumbnailChanged.connect(self.setThumbnail)
-            self.dialog.show()
+        dialog = ObjectEditorDialog(self._parent.parent(), Qt.Window) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
+        editor: AbstractObjectManager = self._manager.getEditor(self._parent.parent()) # this CREATES a new editor!!
+        dialog.setupUi(editor, self._manager)
+        self._manager.fillEditorMenu(dialog.menubar(), editor)
+        self._manager.setObjectToEditor(editor, self._item)
+        dialog.setWindowTitle(f"{self._manager.typename} Editor - {self.getName()}")
+        dialog.thumbnailChanged.connect(self.setThumbnail)
+        dialog.show()
 
     def getWidget(self) -> QtWidgets.QWidget:
         return self._widget
@@ -151,10 +166,10 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         self._widget.setIcon(thumbnail)
 
     def getName(self) -> str:
-        return self._widget.textDownQLabel.text()
+        return self._widget.textUpQLabel.text()
 
     def setName(self, text: str) -> None:
-        self._widget.textDownQLabel.setText(text)
+        self._widget.textUpQLabel.setText(text)
 
     def createLpyResource(self, manager: AbstractObjectManager = None, subtype: str = None):
         if manager != None:
