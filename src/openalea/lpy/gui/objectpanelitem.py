@@ -154,7 +154,11 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         self._manager.setObjectToEditor(editor, self._item)
         dialog.setWindowTitle(f"{self._manager.typename} Editor - {self.getName()}")
         dialog.thumbnailChanged.connect(self.setThumbnail)
+        dialog.valueChanged.connect(self.saveItem)
         dialog.show()
+    
+    def saveItem(self, item: object):
+        self._item = item
 
     def getWidget(self) -> QtWidgets.QWidget:
         return self._widget

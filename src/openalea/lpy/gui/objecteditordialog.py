@@ -8,7 +8,7 @@ import typing
 from PyQt5 import QtCore
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QMainWindow, QMenu, QWidget
+from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QWidget
 from .abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
@@ -20,9 +20,9 @@ import typing
 BASE_DIALOG_SIZE = QSize(300, 400)
 CONTENT_SPACING = 2
 
-class ObjectEditorDialog(QMainWindow):
+class ObjectEditorDialog(QDialog):
     """the class that will create dialog between the panel and the editor window"""
-    valueChanged = pyqtSignal()
+    valueChanged = pyqtSignal(object)
     thumbnailChanged = pyqtSignal(QPixmap)
 
     ## this is unused, and might not be used actually. Left for compatibility purposes
@@ -56,11 +56,12 @@ class ObjectEditorDialog(QMainWindow):
         #       - screenshotButton
         #       - applyButton
         #       - cancelButton
-        # 
-        self.mainWidget = QWidget(self)
-        self.setCentralWidget(self.mainWidget)
+        
+        ## this is used if you define this class as child of QMainWindow class.
+        # self.mainWidget = QWidget(self)
+        # self.setCentralWidget(self.mainWidget)
 
-        self.verticalLayout = QVBoxLayout(self.mainWidget)
+        self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setSpacing(CONTENT_SPACING)
         # self.verticalLayout.setContentsMargins(2, 2, 2, 2)
         self.verticalLayout.setObjectName("verticalLayout")
@@ -119,13 +120,50 @@ class ObjectEditorDialog(QMainWindow):
         self.cancelButton.setText("Cancel")
         self.screenshotButton.setText("Screenshot")
       
-        ## button connection
-        # self.cancelButton.pressed.connect(self.reject)
-        # self.okButton.pressed.connect(self.__ok)
-        # self.applyButton.pressed.connect(self.__apply)
+        # button connection
+        self.cancelButton.pressed.connect(self.__reject)
+        self.okButton.pressed.connect(self.__ok)
+        self.applyButton.pressed.connect(self.__apply)
         self.screenshotButton.pressed.connect(self.__screenshot)
-        # self.autoUpdateCheckBox.toggled.connect(self.setAutomaticUpdate)
-        # self.objectView.valueChanged.connect(self.__valueChanged)
+        self.autoUpdateCheckBox.toggled.connect(self.setAutomaticUpdate)
+        self.objectView.valueChanged.connect(self.__valueChanged)
+
+    def __updateThumbail(self):
+        qpixmap = self.manager.getPixmapThumbnail(self.objectView)
+        self.thumbnailChanged.emit(qpixmap)
+    
+    def __valueChanged(self):
+        if self.isAutomaticUpdate:
+            self.__apply()
+        else:
+            self.isValueChanged = True
+
+    def __apply(self):
+        item = self.manager.retrieveObjectFromEditor(self.objectView)
+        print(item)
+        self.valueChanged.emit(item)
+        self.__updateThumbail()
+        self.isValueChanged = False
+        
+    def __ok(self):
+        self.__apply()
+        self.accept()
+        self.close()
+        self.deleteLater()
+
+    def __reject(self):
+        self.close()
+        self.deleteLater()
+
+    def setAutomaticUpdate(self,value):
+        """setAutomaticUpdate: checking the autoupdate box will make the QDialog send a 'valueChanged()' signal each time it recieve the same Signal from the objectView"""
+        if self.isAutomaticUpdate != value:
+            self.isAutomaticUpdate = value
+            self.applyButton.setEnabled(not self.isAutomaticUpdate)
+            self.AutomaticUpdate.emit(value)
+            if self.isAutomaticUpdate and self.isValueChanged :
+                self.__apply()
+
         
     def menubar(self) -> QMenuBar:
         return self._menubar
