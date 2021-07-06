@@ -8,6 +8,7 @@ import typing
 from PyQt5 import QtCore
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QPixmap
+from PyQt5.QtOpenGL import QGLWidget
 from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QWidget
 from .abstractobjectmanager import AbstractObjectManager
 
@@ -15,12 +16,14 @@ from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
 from openalea.plantgl.gui.qt.QtWidgets import QApplication, QCheckBox, QDialog, QHBoxLayout, QLayout, QMenuBar, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
 from openalea.plantgl.gui.qt.QtCore import Qt
 
+from openalea.plantgl.algo._pglalgo import GLRenderer, Discretizer
+
 import typing
 
 BASE_DIALOG_SIZE = QSize(300, 400)
 CONTENT_SPACING = 2
 
-class ObjectEditorDialog(QDialog):
+class ObjectEditorDialog(QMainWindow):
     """the class that will create dialog between the panel and the editor window"""
     valueChanged = pyqtSignal(object)
     thumbnailChanged = pyqtSignal(QPixmap)
@@ -37,12 +40,9 @@ class ObjectEditorDialog(QDialog):
 
     def __init__(self, parent: typing.Optional[QWidget], flags: typing.Union[QtCore.Qt.WindowFlags, QtCore.Qt.WindowType]) -> None:
         super().__init__(parent=parent, flags=flags)
-
         """during the init of the dialog we have to know the editor we want to open, the typ variable will allow us to know that"""
-        self.isValueChanged = False
-        self.isAutomaticUpdate = False
 
-    def setupUi(self,editor, manager: AbstractObjectManager):
+    def setupUi(self, editor: QWidget, manager: AbstractObjectManager):
         self.setObjectName("Main Windows Object Dialog")
         self.setBaseSize(BASE_DIALOG_SIZE)
         self.manager: AbstractObjectManager = manager
@@ -58,10 +58,13 @@ class ObjectEditorDialog(QDialog):
         #       - cancelButton
         
         ## this is used if you define this class as child of QMainWindow class.
-        # self.mainWidget = QWidget(self)
-        # self.setCentralWidget(self.mainWidget)
+        self.mainWidget = QWidget(self)
+        # OpenGL object
+        # self.mainWidget.discretizer = Discretizer()
+        # self.mainWidget.renderer = GLRenderer(self.mainWidget.discretizer)
+        self.setCentralWidget(self.mainWidget)
 
-        self.verticalLayout = QVBoxLayout(self)
+        self.verticalLayout = QVBoxLayout(self.mainWidget)
         self.verticalLayout.setSpacing(CONTENT_SPACING)
         # self.verticalLayout.setContentsMargins(2, 2, 2, 2)
         self.verticalLayout.setObjectName("verticalLayout")
@@ -147,7 +150,6 @@ class ObjectEditorDialog(QDialog):
         
     def __ok(self):
         self.__apply()
-        self.accept()
         self.close()
         self.deleteLater()
 

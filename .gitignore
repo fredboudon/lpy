@@ -23,6 +23,7 @@ src/openalea/lpy/gui/scalarmetaedit.py
 \#*\#
 
 # C extensions
+build-*
 build-scons
 build-scons_noqt
 build-scons_qt4

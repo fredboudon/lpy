@@ -1,0 +1,85 @@
+setLeftToRight
+setLeftToRight
+setLeftToRight
+==2965== Syscall param writev(vector[...]) points to uninitialised byte(s)
+==2965==    at 0x4AFA537: __writev (writev.c:26)
+==2965==    by 0x4AFA537: writev (writev.c:24)
+==2965==    by 0xC34B8F9: _xcb_conn_wait (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2965==    by 0xC34BCB0: _xcb_out_send (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2965==    by 0xC34C237: xcb_send_request_with_fds64 (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2965==    by 0xC34C4B9: xcb_send_request (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2965==    by 0xC358CFB: xcb_put_image (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2965==    by 0x2B9331D1: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2965==    by 0x2B8D6FC2: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2965==    by 0x2B8D6BBB: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2965==    by 0x2B8D73B2: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2965==    by 0x2B8D78F4: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2965==    by 0x9760EA3: QBackingStore::flush(QRegion const&, QWindow*, QPoint const&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2965==  Address 0x2b590d1c is 4,604 bytes inside a block of size 21,152 alloc'd
+==2965==    at 0x4837B65: calloc (vg_replace_malloc.c:752)
+==2965==    by 0xC34B2E1: xcb_connect_to_fd (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2965==    by 0xC34F0D4: xcb_connect_to_display_with_auth_info (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2965==    by 0xC02B66A: _XConnectXCB (in /home/jonathan/miniconda3/envs/lpydev/lib/libX11.so.6.4.0)
+==2965==    by 0xC01B2D8: XOpenDisplay (in /home/jonathan/miniconda3/envs/lpydev/lib/libX11.so.6.4.0)
+==2965==    by 0x2B8DF17F: QXcbBasicConnection::QXcbBasicConnection(char const*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2965==    by 0x2B8C413F: QXcbConnection::QXcbConnection(QXcbNativeInterface*, bool, unsigned int, char const*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2965==    by 0x2B8C7335: QXcbIntegration::QXcbIntegration(QStringList const&, int&, char**) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2965==    by 0x2B87F8A7: ??? (in /home/jonathan/miniconda3/envs/lpydev/plugins/platforms/libqxcb.so)
+==2965==    by 0x9680D88: QPlatformIntegrationFactory::create(QString const&, QStringList const&, int&, char**, QString const&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2965==    by 0x96883F1: QGuiApplicationPrivate::createPlatformIntegration() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2965==    by 0x9688B6E: QGuiApplicationPrivate::createEventDispatcher() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2965== 
+==2965== Invalid read of size 8
+==2965==    at 0x24E195: PyDict_GetItemWithError (dictobject.c:1463)
+==2965==    by 0xCE3C374: PyArray_GetCastingImpl (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/numpy/core/_multiarray_umath.cpython-39-x86_64-linux-gnu.so)
+==2965==    by 0xCE3C878: PyArray_GetCastSafety (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/numpy/core/_multiarray_umath.cpython-39-x86_64-linux-gnu.so)
+==2965==    by 0xCEDB2AA: PyArray_EquivTypes.part.0 (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/numpy/core/_multiarray_umath.cpython-39-x86_64-linux-gnu.so)
+==2965==    by 0xCD46679: boost::python::numpy::equivalent(boost::python::numpy::dtype const&, boost::python::numpy::dtype const&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_numpy39.so.1.74.0)
+==2965==    by 0xCD47199: boost::python::numpy::(anonymous namespace)::array_scalar_converter<double>::convertible(_object*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_numpy39.so.1.74.0)
+==2965==    by 0x8821FAD: boost::python::converter::rvalue_from_python_stage1(_object*, boost::python::converter::registration const&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_python39.so.1.74.0)
+==2965==    by 0xC4275D5: boost::python::objects::caller_py_function_impl<boost::python::detail::caller<void (*)(_object*, double), boost::python::default_call_policies, boost::mpl::vector3<void, _object*, double> > >::operator()(_object*, _object*) (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/OpenAlea.PlantGL-3.9.3-py3.9.egg/openalea/plantgl/math/_pglmath.so)
+==2965==    by 0x882AECC: boost::python::objects::function::call(_object*, _object*) const (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_python39.so.1.74.0)
+==2965==    by 0x882B0D8: boost::detail::function::void_function_ref_invoker0<boost::python::objects::(anonymous namespace)::bind_return, void>::invoke(boost::detail::function::function_buffer&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_python39.so.1.74.0)
+==2965==    by 0x882FED2: boost::python::detail::exception_handler::operator()(boost::function0<void> const&) const (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_python39.so.1.74.0)
+==2965==    by 0x78D4603: boost::python::detail::translate_exception<PythonExc_StopIteration, void (*)(PythonExc_StopIteration const&)>::operator()(boost::python::detail::exception_handler const&, boost::function0<void> const&, void (*)(PythonExc_StopIteration const&)) const (translate_exception.hpp:46)
+==2965==  Address 0x8 is not stack'd, malloc'd or (recently) free'd
+==2965== 
+==2965== 
+==2965== Process terminating with default action of signal 11 (SIGSEGV)
+==2965==  Access not within mapped region at address 0x8
+==2965==    at 0x24E195: PyDict_GetItemWithError (dictobject.c:1463)
+==2965==    by 0xCE3C374: PyArray_GetCastingImpl (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/numpy/core/_multiarray_umath.cpython-39-x86_64-linux-gnu.so)
+==2965==    by 0xCE3C878: PyArray_GetCastSafety (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/numpy/core/_multiarray_umath.cpython-39-x86_64-linux-gnu.so)
+==2965==    by 0xCEDB2AA: PyArray_EquivTypes.part.0 (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/numpy/core/_multiarray_umath.cpython-39-x86_64-linux-gnu.so)
+==2965==    by 0xCD46679: boost::python::numpy::equivalent(boost::python::numpy::dtype const&, boost::python::numpy::dtype const&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_numpy39.so.1.74.0)
+==2965==    by 0xCD47199: boost::python::numpy::(anonymous namespace)::array_scalar_converter<double>::convertible(_object*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_numpy39.so.1.74.0)
+==2965==    by 0x8821FAD: boost::python::converter::rvalue_from_python_stage1(_object*, boost::python::converter::registration const&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_python39.so.1.74.0)
+==2965==    by 0xC4275D5: boost::python::objects::caller_py_function_impl<boost::python::detail::caller<void (*)(_object*, double), boost::python::default_call_policies, boost::mpl::vector3<void, _object*, double> > >::operator()(_object*, _object*) (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/OpenAlea.PlantGL-3.9.3-py3.9.egg/openalea/plantgl/math/_pglmath.so)
+==2965==    by 0x882AECC: boost::python::objects::function::call(_object*, _object*) const (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_python39.so.1.74.0)
+==2965==    by 0x882B0D8: boost::detail::function::void_function_ref_invoker0<boost::python::objects::(anonymous namespace)::bind_return, void>::invoke(boost::detail::function::function_buffer&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_python39.so.1.74.0)
+==2965==    by 0x882FED2: boost::python::detail::exception_handler::operator()(boost::function0<void> const&) const (in /home/jonathan/miniconda3/envs/lpydev/lib/libboost_python39.so.1.74.0)
+==2965==    by 0x78D4603: boost::python::detail::translate_exception<PythonExc_StopIteration, void (*)(PythonExc_StopIteration const&)>::operator()(boost::python::detail::exception_handler const&, boost::function0<void> const&, void (*)(PythonExc_StopIteration const&)) const (translate_exception.hpp:46)
+==2965==  If you believe this happened as a result of a stack
+==2965==  overflow in your program's main thread (unlikely but
+==2965==  possible), you can try to increase the size of the
+==2965==  main thread stack using the --main-stacksize= flag.
+==2965==  The main thread stack size used in this run was 8388608.
+==2965== 
+==2965== HEAP SUMMARY:
+==2965==     in use at exit: 26,217,874 bytes in 43,182 blocks
+==2965==   total heap usage: 121,477 allocs, 78,295 frees, 139,886,046 bytes allocated
+==2965== 
+==2965== LEAK SUMMARY:
+==2965==    definitely lost: 16 bytes in 1 blocks
+==2965==    indirectly lost: 0 bytes in 0 blocks
+==2965==      possibly lost: 439,978 bytes in 1,342 blocks
+==2965==    still reachable: 25,777,880 bytes in 41,839 blocks
+==2965==                       of which reachable via heuristic:
+==2965==                         multipleinheritance: 3,192 bytes in 5 blocks
+==2965==         suppressed: 0 bytes in 0 blocks
+==2965== Rerun with --leak-check=full to see details of leaked memory
+==2965== 
+==2965== For counts of detected and suppressed errors, rerun with: -v
+==2965== Use --track-origins=yes to see where uninitialised values come from
+==2965== ERROR SUMMARY: 9303 errors from 212 contexts (suppressed: 32 from 2)
+Segmentation fault (core dumped)

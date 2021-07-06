@@ -31,8 +31,10 @@ class QCustomQWidget (QtGui.QWidget):
         self.iconQLabel      = QtGui.QLabel()
 
         self.textUpQLabel.setWordWrap(True)
+        self.textDownQLabel.setWordWrap(True)
 
         self.textQVBoxLayout.addWidget(self.textUpQLabel)
+        self.textQVBoxLayout.addWidget(self.textDownQLabel)
         self.textQVBoxLayout.addWidget(self.iconQLabel)
         self.textQVBoxLayout.setAlignment(self.textUpQLabel, Qt.AlignTop)
         # self.textQVBoxLayout.setAlignment(self.iconQLabel, Qt.AlignTop)
@@ -62,13 +64,15 @@ class QCustomQWidget (QtGui.QWidget):
         self.setMinimumWidth(WIDGET_MIN_ORTHO_SIZE)
         self.setMinimumHeight(1)
         self.textUpQLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        # self.panelItem.setSizeHint(QSize(WIDGET_MIN_ORTHO_SIZE, WIDGET_MIN_ORTHO_SIZE))
         print("setLeftToRight")
 
     def setTopToBottom(self):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.setMinimumWidth(1)
         self.setMinimumHeight(WIDGET_MIN_ORTHO_SIZE)
-        self.setMinimumWidth(0)
-        self.textUpQLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.textUpQLabel.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
+        # self.panelItem.setSizeHint(QSize(WIDGET_MIN_ORTHO_SIZE, WIDGET_MIN_ORTHO_SIZE))
         print("setTopToBottom")
 
     def mouseDoubleClickEvent(self, a0: QtGui.QMouseEvent) -> None:
@@ -110,8 +114,8 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         self.createLpyResource(manager, subtype)
         self._widget = QCustomQWidget(parent, self)
         self._widget.setIcon(QtGui.QPixmap("/home/jonathan/lpy/dummy.png"))
-        self._widget.setTextUp(f"{manager.__class__}")
-        self._widget.setTextDown(manager.getName(self._item))
+        self._widget.setTextDown(f"{manager.__class__}")
+        self._widget.setTextUp(manager.getName(self._item))
 
         self._parent = parent #needed as self.dialog parent
         self.setFlags(self.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
@@ -147,7 +151,7 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
 
     def editItem(self):
 
-        dialog = ObjectEditorDialog(self._parent.parent(), Qt.Window) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
+        dialog = ObjectEditorDialog(None, Qt.Window) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
         editor: AbstractObjectManager = self._manager.getEditor(self._parent.parent()) # this CREATES a new editor!!
         dialog.setupUi(editor, self._manager)
         self._manager.fillEditorMenu(dialog.menubar(), editor)
@@ -156,6 +160,8 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         dialog.thumbnailChanged.connect(self.setThumbnail)
         dialog.valueChanged.connect(self.saveItem)
         dialog.show()
+        dialog.activateWindow()
+        dialog.raise_()
     
     def saveItem(self, item: object):
         self._item = item

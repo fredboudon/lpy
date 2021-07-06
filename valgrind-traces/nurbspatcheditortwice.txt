@@ -1,0 +1,177 @@
+setLeftToRight
+==2932== Syscall param writev(vector[...]) points to uninitialised byte(s)
+==2932==    at 0x4AFA537: __writev (writev.c:26)
+==2932==    by 0x4AFA537: writev (writev.c:24)
+==2932==    by 0xC34B8F9: _xcb_conn_wait (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2932==    by 0xC34BCB0: _xcb_out_send (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2932==    by 0xC34C237: xcb_send_request_with_fds64 (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2932==    by 0xC34C4B9: xcb_send_request (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2932==    by 0xC358CFB: xcb_put_image (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2932==    by 0x2B9331D1: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8D6FC2: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8D6BBB: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8D73B2: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8D78F4: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x9760EA3: QBackingStore::flush(QRegion const&, QWindow*, QPoint const&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2932==  Address 0x2b590d1c is 4,604 bytes inside a block of size 21,152 alloc'd
+==2932==    at 0x4837B65: calloc (vg_replace_malloc.c:752)
+==2932==    by 0xC34B2E1: xcb_connect_to_fd (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2932==    by 0xC34F0D4: xcb_connect_to_display_with_auth_info (in /home/jonathan/miniconda3/envs/lpydev/lib/libxcb.so.1.1.0)
+==2932==    by 0xC02B66A: _XConnectXCB (in /home/jonathan/miniconda3/envs/lpydev/lib/libX11.so.6.4.0)
+==2932==    by 0xC01B2D8: XOpenDisplay (in /home/jonathan/miniconda3/envs/lpydev/lib/libX11.so.6.4.0)
+==2932==    by 0x2B8DF17F: QXcbBasicConnection::QXcbBasicConnection(char const*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8C413F: QXcbConnection::QXcbConnection(QXcbNativeInterface*, bool, unsigned int, char const*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8C7335: QXcbIntegration::QXcbIntegration(QStringList const&, int&, char**) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B87F8A7: ??? (in /home/jonathan/miniconda3/envs/lpydev/plugins/platforms/libqxcb.so)
+==2932==    by 0x9680D88: QPlatformIntegrationFactory::create(QString const&, QStringList const&, int&, char**, QString const&) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2932==    by 0x96883F1: QGuiApplicationPrivate::createPlatformIntegration() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2932==    by 0x9688B6E: QGuiApplicationPrivate::createEventDispatcher() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2932== 
+==2932== Conditional jump or move depends on uninitialised value(s)
+==2932==    at 0x2F3CCEF3: ??? (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x2F32A0F8: llvm::MachineFunctionPass::runOnFunction(llvm::Function&) (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x2F1BA967: llvm::FPPassManager::runOnFunction(llvm::Function&) (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x2F1BABC2: llvm::FPPassManager::runOnModule(llvm::Module&) (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x2F1BAF8A: llvm::legacy::PassManagerImpl::run(llvm::Module&) (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x3001B477: llvm::MCJIT::emitObject(llvm::Module*) (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x3001B6D3: llvm::MCJIT::generateCodeForModule(llvm::Module*) (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x3001C07D: llvm::MCJIT::finalizeObject() (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x2FFFB0AF: LLVMGetPointerToGlobal (in /usr/lib/x86_64-linux-gnu/libLLVM-7.so.1)
+==2932==    by 0x2DA837A5: ??? (in /usr/lib/x86_64-linux-gnu/dri/swrast_dri.so)
+==2932==    by 0x2DA7B7F7: ??? (in /usr/lib/x86_64-linux-gnu/dri/swrast_dri.so)
+==2932==    by 0x2DA67C57: ??? (in /usr/lib/x86_64-linux-gnu/dri/swrast_dri.so)
+==2932== 
+NurbsPatch(Point4Matrix([[Vector4(0,-0.5,-0.5,1),Vector4(0,-0.5,-0.166667,1),Vector4(0,-0.5,0.166667,1),Vector4(0,-0.5,0.5,1)],[Vector4(0,-0.166667,-0.5,1),Vector4(0,-0.166667,-0.166667,1),Vector4(0,-0.166667,0.166667,1),Vector4(0,-0.166667,0.5,1)],[Vector4(0,0.166667,-0.5,1),Vector4(0,0.166667,-0.166667,1),Vector4(0,0.166667,0.166667,1),Vector4(0,0.166667,0.5,1)],[Vector4(0,0.5,-0.5,1),Vector4(0,0.5,-0.166667,1),Vector4(0,0.5,0.166667,1),Vector4(0,0.5,0.5,1)]]), ustride = 10, vstride = 10)
+==2932== Invalid read of size 4
+==2932==    at 0x228D5B: UnknownInlinedFun (obmalloc.c:1420)
+==2932==    by 0x228D5B: UnknownInlinedFun (obmalloc.c:1866)
+==2932==    by 0x228D5B: UnknownInlinedFun (obmalloc.c:1920)
+==2932==    by 0x228D5B: PyMem_Free (obmalloc.c:629)
+==2932==    by 0x2A61192B: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/sip.so)
+==2932==    by 0x2A60F7C1: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/sip.so)
+==2932==    by 0x252C04: type_call (typeobject.c:1026)
+==2932==    by 0x26BF81: UnknownInlinedFun (call.c:281)
+==2932==    by 0x26BF81: PyObject_Call (call.c:293)
+==2932==    by 0x2A611239: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/sip.so)
+==2932==    by 0x2A6032E4: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/sip.so)
+==2932==    by 0x2A845476: pyqtBoundSignal_connect (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/QtCore.so)
+==2932==    by 0x2BCF50: method_vectorcall_VARARGS_KEYWORDS (descrobject.c:346)
+==2932==    by 0x2E60D5: UnknownInlinedFun (abstract.h:118)
+==2932==    by 0x2E60D5: UnknownInlinedFun (abstract.h:127)
+==2932==    by 0x2E60D5: UnknownInlinedFun (ceval.c:5072)
+==2932==    by 0x2E60D5: _PyEval_EvalFrameDefault (ceval.c:3504)
+==2932==    by 0x23FECF: UnknownInlinedFun (pycore_ceval.h:40)
+==2932==    by 0x23FECF: _PyEval_EvalCode (ceval.c:4327)
+==2932==    by 0x2A7475: _PyFunction_Vectorcall (call.c:396)
+==2932==  Address 0x28c58020 is 16 bytes inside a block of size 24 free'd
+==2932==    at 0x48369AB: free (vg_replace_malloc.c:530)
+==2932==    by 0x8A15798: QObject::connect(QObject const*, char const*, QObject const*, char const*, Qt::ConnectionType) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x2CC94B7A: QGLViewer::setCamera(qglviewer::Camera*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQGLViewer-qt5.so.2.6.4)
+==2932==    by 0x2CC98217: QGLViewer::defaultConstructor() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQGLViewer-qt5.so.2.6.4)
+==2932==    by 0x2CC99040: QGLViewer::QGLViewer(QWidget*, QGLWidget const*, QFlags<Qt::WindowType>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQGLViewer-qt5.so.2.6.4)
+==2932==    by 0x2CC22E59: sipQGLViewer::sipQGLViewer(QWidget*, QGLWidget const*, QFlags<Qt::WindowType>) (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQGLViewerQt5.so)
+==2932==    by 0x2CC23223: init_type_QGLViewer (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQGLViewerQt5.so)
+==2932==    by 0x2A60F827: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/sip.so)
+==2932==    by 0x313EDA: wrap_init (typeobject.c:6163)
+==2932==    by 0x266193: UnknownInlinedFun (descrobject.c:508)
+==2932==    by 0x266193: wrapperdescr_call (descrobject.c:554)
+==2932==    by 0x24D405: _PyObject_MakeTpCall (call.c:191)
+==2932==    by 0x2EAE1B: UnknownInlinedFun (abstract.h:116)
+==2932==    by 0x2EAE1B: UnknownInlinedFun (abstract.h:103)
+==2932==    by 0x2EAE1B: UnknownInlinedFun (abstract.h:127)
+==2932==    by 0x2EAE1B: UnknownInlinedFun (ceval.c:5072)
+==2932==    by 0x2EAE1B: _PyEval_EvalFrameDefault (ceval.c:3487)
+==2932==  Block was alloc'd at
+==2932==    at 0x483577F: malloc (vg_replace_malloc.c:299)
+==2932==    by 0x88FA15B: QArrayData::allocate(unsigned long, unsigned long, unsigned long, QFlags<QArrayData::AllocationOption>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x88FB980: QByteArray::fromRawData(char const*, int) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x89FFF03: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x8A150AC: QObject::connect(QObject const*, char const*, QObject const*, char const*, Qt::ConnectionType) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x2CC94B7A: QGLViewer::setCamera(qglviewer::Camera*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQGLViewer-qt5.so.2.6.4)
+==2932==    by 0x2CC98217: QGLViewer::defaultConstructor() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQGLViewer-qt5.so.2.6.4)
+==2932==    by 0x2CC99040: QGLViewer::QGLViewer(QWidget*, QGLWidget const*, QFlags<Qt::WindowType>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQGLViewer-qt5.so.2.6.4)
+==2932==    by 0x2CC22E59: sipQGLViewer::sipQGLViewer(QWidget*, QGLWidget const*, QFlags<Qt::WindowType>) (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQGLViewerQt5.so)
+==2932==    by 0x2CC23223: init_type_QGLViewer (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQGLViewerQt5.so)
+==2932==    by 0x2A60F827: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/sip.so)
+==2932==    by 0x313EDA: wrap_init (typeobject.c:6163)
+==2932== 
+==2932== Invalid read of size 8
+==2932==    at 0x9685B8A: QGuiApplicationPrivate::processNativeEvent(QWindow*, QByteArray const&, void*, long*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Gui.so.5.12.9)
+==2932==    by 0x2B8CF7D3: QXcbWindow::handleNativeEvent(xcb_generic_event_t*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8C48FB: QXcbConnection::handleXcbEvent(xcb_generic_event_t*) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8C53B6: QXcbConnection::processXcbEvents(QFlags<QEventLoop::ProcessEventsFlag>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0x2B8DE008: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5XcbQpa.so.5.12.9)
+==2932==    by 0xBCEA23C: g_main_context_dispatch (in /home/jonathan/miniconda3/envs/lpydev/lib/libglib-2.0.so.0.6800.3)
+==2932==    by 0xBCEA4D0: g_main_context_iterate.isra.0 (in /home/jonathan/miniconda3/envs/lpydev/lib/libglib-2.0.so.0.6800.3)
+==2932==    by 0xBCEA570: g_main_context_iteration (in /home/jonathan/miniconda3/envs/lpydev/lib/libglib-2.0.so.0.6800.3)
+==2932==    by 0x8A2C0E7: QEventDispatcherGlib::processEvents(QFlags<QEventLoop::ProcessEventsFlag>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x89FA018: QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x89FDE8E: QCoreApplication::exec() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x2AB6F3C1: meth_QApplication_exec_ (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/QtWidgets.so)
+==2932==  Address 0x569edc0 is 0 bytes inside a block of size 88 free'd
+==2932==    at 0x483708B: operator delete(void*, unsigned long) (vg_replace_malloc.c:585)
+==2932==    by 0x91DEC20: QWidgetPrivate::deleteTLSysExtra() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Widgets.so.5.12.9)
+==2932==    by 0x91E1EDF: QWidget::destroy(bool, bool) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Widgets.so.5.12.9)
+==2932==    by 0x91E6678: QWidget::~QWidget() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Widgets.so.5.12.9)
+==2932==    by 0x2CC1A409: sipQGLViewer::~sipQGLViewer() (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQGLViewerQt5.so)
+==2932==    by 0x8A1685C: QObjectPrivate::deleteChildren() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x91E665C: QWidget::~QWidget() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Widgets.so.5.12.9)
+==2932==    by 0x2AD50308: sipQWidget::~sipQWidget() (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/QtWidgets.so)
+==2932==    by 0x8A1685C: QObjectPrivate::deleteChildren() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==    by 0x91E665C: QWidget::~QWidget() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Widgets.so.5.12.9)
+==2932==    by 0x2AD50308: sipQWidget::~sipQWidget() (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/QtWidgets.so)
+==2932==    by 0x8A1685C: QObjectPrivate::deleteChildren() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932==  Block was alloc'd at
+==2932==    at 0x4835DEF: operator new(unsigned long) (vg_replace_malloc.c:334)
+==2932==    by 0x91D99E2: QWidgetPrivate::createTLSysExtra() (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Widgets.so.5.12.9)
+==2932==    by 0x91E0333: QWidget::setAttribute(Qt::WidgetAttribute, bool) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Widgets.so.5.12.9)
+==2932==    by 0x91EA789: QWidgetPrivate::init(QWidget*, QFlags<Qt::WindowType>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Widgets.so.5.12.9)
+==2932==    by 0x8EF5C15: QGLWidget::QGLWidget(QWidget*, QGLWidget const*, QFlags<Qt::WindowType>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5OpenGL.so.5.12.9)
+==2932==    by 0x2CC98F6C: QGLViewer::QGLViewer(QWidget*, QGLWidget const*, QFlags<Qt::WindowType>) (in /home/jonathan/miniconda3/envs/lpydev/lib/libQGLViewer-qt5.so.2.6.4)
+==2932==    by 0x2CC22E59: sipQGLViewer::sipQGLViewer(QWidget*, QGLWidget const*, QFlags<Qt::WindowType>) (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQGLViewerQt5.so)
+==2932==    by 0x2CC23223: init_type_QGLViewer (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQGLViewerQt5.so)
+==2932==    by 0x2A60F827: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/python3.9/site-packages/PyQt5/sip.so)
+==2932==    by 0x313EDA: wrap_init (typeobject.c:6163)
+==2932==    by 0x266193: UnknownInlinedFun (descrobject.c:508)
+==2932==    by 0x266193: wrapperdescr_call (descrobject.c:554)
+==2932==    by 0x24D405: _PyObject_MakeTpCall (call.c:191)
+==2932== 
+vex amd64->IR: unhandled instruction bytes: 0xFF 0xFF 0xFF 0xFF 0x15 0x0 0x0 0x0 0x0 0x0
+vex amd64->IR:   REX=0 REX.W=0 REX.R=0 REX.X=0 REX.B=0
+vex amd64->IR:   VEX=0 VEX.L=0 VEX.nVVVV=0x0 ESC=NONE
+vex amd64->IR:   PFX.66=0 PFX.F2=0 PFX.F3=0
+==2932== valgrind: Unrecognised instruction at address 0x8b97e60.
+==2932==    at 0x8B97E60: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932== Your program just tried to execute an instruction that Valgrind
+==2932== did not recognise.  There are two possible reasons for this.
+==2932== 1. Your program has a bug and erroneously jumped to a non-code
+==2932==    location.  If you are running Memcheck and you just saw a
+==2932==    warning about a bad jump, it's probably your program's fault.
+==2932== 2. The instruction is legitimate but Valgrind doesn't handle it,
+==2932==    i.e. it's Valgrind's fault.  If you think this is the case or
+==2932==    you are not sure, please let us know and we'll try to fix it.
+==2932== Either way, Valgrind will now raise a SIGILL signal which will
+==2932== probably kill your program.
+==2932== 
+==2932== Process terminating with default action of signal 4 (SIGILL)
+==2932==  Illegal opcode at address 0x8B97E60
+==2932==    at 0x8B97E60: ??? (in /home/jonathan/miniconda3/envs/lpydev/lib/libQt5Core.so.5.12.9)
+==2932== 
+==2932== HEAP SUMMARY:
+==2932==     in use at exit: 23,975,845 bytes in 41,236 blocks
+==2932==   total heap usage: 312,706 allocs, 271,470 frees, 271,933,555 bytes allocated
+==2932== 
+==2932== LEAK SUMMARY:
+==2932==    definitely lost: 2,576 bytes in 33 blocks
+==2932==    indirectly lost: 0 bytes in 0 blocks
+==2932==      possibly lost: 365,533 bytes in 847 blocks
+==2932==    still reachable: 23,607,736 bytes in 40,356 blocks
+==2932==                       of which reachable via heuristic:
+==2932==                         multipleinheritance: 1,576 bytes in 2 blocks
+==2932==         suppressed: 0 bytes in 0 blocks
+==2932== Rerun with --leak-check=full to see details of leaked memory
+==2932== 
+==2932== For counts of detected and suppressed errors, rerun with: -v
+==2932== Use --track-origins=yes to see where uninitialised values come from
+==2932== ERROR SUMMARY: 10048 errors from 214 contexts (suppressed: 34 from 2)
+Illegal instruction (core dumped)

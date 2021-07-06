@@ -351,18 +351,21 @@ class DragListWidget(QListWidget):
         self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())
 
         print(self.plugins)
-
-        for mname, manager in self.plugins:
-            subtypes = manager.defaultObjectTypes()
-            if not subtypes is None and len(subtypes) == 1:
-                mname = subtypes[0]
-                subtypes = None
-            if subtypes is None:
-                self.createDefaultObject(manager)
-            else:
-                for subtype in subtypes: 
-                    # subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
-                    self.createDefaultObject(manager, subtype)
+        
+        
+        isCreatingDefaultObjects: bool = True
+        if isCreatingDefaultObjects:
+            for mname, manager in self.plugins:
+                subtypes = manager.defaultObjectTypes()
+                if not subtypes is None and len(subtypes) == 1:
+                    mname = subtypes[0]
+                    subtypes = None
+                if subtypes is None:
+                    self.createDefaultObject(manager)
+                else:
+                    for subtype in subtypes: 
+                        # subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
+                        self.createDefaultObject(manager, subtype)
 
         #  and this will take care of everything else:
         self.setContextMenuPolicy(Qt.DefaultContextMenu) # this will call the event handler
