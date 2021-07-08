@@ -18,6 +18,9 @@ from openalea.plantgl.gui.qt.QtCore import Qt
 
 from openalea.plantgl.algo._pglalgo import GLRenderer, Discretizer
 
+from openalea.plantgl.gui.qt.QtOpenGL import QGLWidget 
+
+
 import typing
 
 BASE_DIALOG_SIZE = QSize(300, 400)
@@ -36,13 +39,16 @@ class ObjectEditorDialog(QMainWindow):
     isValueChanged: bool = False
     isAutomaticUpdate: bool = False
     _menubar: QMenuBar = None
-    objectView: QWidget = None
+    objectView: QGLWidget = None
 
     def __init__(self, parent: typing.Optional[QWidget], flags: typing.Union[QtCore.Qt.WindowFlags, QtCore.Qt.WindowType]) -> None:
         super().__init__(parent=parent, flags=flags)
         """during the init of the dialog we have to know the editor we want to open, the typ variable will allow us to know that"""
 
-    def setupUi(self, editor: QWidget, manager: AbstractObjectManager):
+    def getEditor(self):
+        return self.objectView
+    
+    def setupUi(self, manager: AbstractObjectManager):
         self.setObjectName("Main Windows Object Dialog")
         self.setBaseSize(BASE_DIALOG_SIZE)
         self.manager: AbstractObjectManager = manager
@@ -76,7 +82,9 @@ class ObjectEditorDialog(QMainWindow):
 
         self.verticalLayout.setMenuBar(self._menubar)
 
-        self.objectView = editor
+        self.objectView = self.manager.getEditor(self) # this CREATES a new editor!!
+        
+
         # sizePolicy.setHorizontalStretch(0)
         # sizePolicy.setVerticalStretch(5)
         #sizePolicy.setHeightForWidth(self.objectView.sizePolicy().hasHeightForWidth())
@@ -130,6 +138,8 @@ class ObjectEditorDialog(QMainWindow):
         self.screenshotButton.pressed.connect(self.__screenshot)
         self.autoUpdateCheckBox.toggled.connect(self.setAutomaticUpdate)
         self.objectView.valueChanged.connect(self.__valueChanged)
+
+        self.manager.fillEditorMenu(self.menubar(), self.objectView)
 
     def __updateThumbail(self):
         qpixmap = self.manager.getPixmapThumbnail(self.objectView)

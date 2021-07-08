@@ -150,12 +150,9 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         dialog.show()
 
     def editItem(self):
-
-        dialog = ObjectEditorDialog(None, Qt.Window) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
-        editor: AbstractObjectManager = self._manager.getEditor(self._parent.parent()) # this CREATES a new editor!!
-        dialog.setupUi(editor, self._manager)
-        self._manager.fillEditorMenu(dialog.menubar(), editor)
-        self._manager.setObjectToEditor(editor, self._item)
+        dialog = ObjectEditorDialog(self._parent.parent().parent(), Qt.Window) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
+        dialog.setupUi(self._manager) # the dialog creates the editor and stores it
+        self._manager.setObjectToEditor(dialog.getEditor(), self._item)
         dialog.setWindowTitle(f"{self._manager.typename} Editor - {self.getName()}")
         dialog.thumbnailChanged.connect(self.setThumbnail)
         dialog.valueChanged.connect(self.saveItem)
