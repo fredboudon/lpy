@@ -3,7 +3,8 @@
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 from qtconsole.inprocess import QtInProcessKernelManager
 # from .streamredirection import GraphicalStreamRedirection
-import sys, tempfile
+import sys, tempfile, os
+import warnings
 
 class LpyShellWidget(RichJupyterWidget): #, GraphicalStreamRedirection):
 
@@ -50,5 +51,15 @@ def set_shell_widget(lpywidget):
     lpywidget.shellstdout = kernel.stdout
     lpywidget.shellstderr = kernel.stderr
 
-    sys.stdout = kernel.stdout
-    sys.stderr = kernel.stderr
+    if os.name == 'posix':
+        # for POSIX OSes you can use dup2 to cleanly duplicate streams.
+        os.dup2(sys.stdout.fileno(), kernel.stdout.fileno())
+        os.dup2(sys.stderr.fileno(), kernel.stderr.fileno())
+    else:
+        # for Windows, just tell them they may not see errors.
+        warnings.warn("""
+You appear to be running Windows. System standard output and errors will be redirected to the internal IPython console.
+If your application crashes and you can't read the issue, consider debugging on a POSIX-compatible OS, or disabling the standard output/error streams redirection in lpyshell.sh:76.
+""")
+        sys.stdout = kernel.stdout
+        sys.stderr = kernel.stderr
