@@ -13,6 +13,8 @@ from openalea.plantgl.gui.qt.QtCore import QObject, QPoint, Qt, pyqtSignal, pyqt
 from openalea.plantgl.gui.qt.QtGui import QFont, QFontMetrics, QImageWriter, QColor, QPainter, QPixmap
 from openalea.plantgl.gui.qt.QtWidgets import QAbstractItemView, QAction, QApplication, QDockWidget, QFileDialog, QLineEdit, QMenu, QMessageBox, QScrollArea, QVBoxLayout, QWidget, QLabel, QListView, QListWidget, QListWidgetItem, QSizePolicy
 
+SCROLL_SINGLE_STEP = 5
+
 
 def renderText(self, x, y, text, font = QFont(), color = None):
 
@@ -324,7 +326,6 @@ class DragListWidget(QListWidget):
     renameRequest = pyqtSignal(int)
 
     panelManager: ObjectPanelManager = None
-    widgetList : dict[QListWidgetItem] = {}
     plugins: dict[AbstractObjectManager] = {}
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
 
@@ -343,15 +344,14 @@ class DragListWidget(QListWidget):
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.MoveAction)
         self.setFlow(QListView.TopToBottom)
+        self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
         ## I think these don't work in QListWidget, only in QListView.
         # self.setSelectionMode(QAbstractItemView.ExtendedSelection) 
         # self.setEditTriggers(QAbstractItemView.DoubleClicked) #  | QAbstractItemView.EditKeyPressed
 
-        self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())
-
-        print(self.plugins)
-        
+        self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())        
         
         isCreatingDefaultObjects: bool = True
         if isCreatingDefaultObjects:
@@ -361,11 +361,11 @@ class DragListWidget(QListWidget):
                     mname = subtypes[0]
                     subtypes = None
                 if subtypes is None:
-                    self.createDefaultObject(manager)
+                    self.createObject(manager)
                 else:
                     for subtype in subtypes: 
                         # subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
-                        self.createDefaultObject(manager, subtype)
+                        self.createObject(manager, subtype)
 
         #  and this will take care of everything else:
         self.setContextMenuPolicy(Qt.DefaultContextMenu) # this will call the event handler
@@ -374,10 +374,46 @@ class DragListWidget(QListWidget):
         for action in self.menuActions.values():
             self.addAction(action)
 
+    def createObject(self, manager, subtype = None):
+        """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
+        item = ObjectPanelItem(parent=self, manager=manager, subtype=subtype)
+        item.setName(f"Item Name")
+        self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
+
+    def getObjects(self):
+        items = []
+        for x in range(self.count() - 1):
+            items.append(self.item(x))
+        objects = list(map(lambda i: (i.getManager(), i.getItem()), items))
+        return objects
+    
+    def getObjectsCopy(self):
+        from copy import deepcopy
+        return [(m,deepcopy(o)) for m,o in self.getObjects()]
+    
+    def setObjects(self, objectList):
+        self.clear()
+        self.appendObjects(objectList)
+
+    def appendObjects(self, objectList):
+        for i in objectList:
+            self.appendObject(i)
+
+    def appendObject(self, object):
+        manager, item = object
+        item = ObjectPanelItem(parent=self, manager=manager, sourceItem = item)
+        item.setName(f"Item Name")
+        self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
+        self.valueChanged.emit(self.count() - 1) #emitting the position of the item
+
+    # I think this is not used by the QListWidget only by QListView
+    # def editItem(self, item: QListWidgetItem) -> None:
+    #     print(f"edit item: {item.getName()}")
+    #     return super().editItem(item)
+
     def resizeEvent(self, e: QtGui.QResizeEvent) -> None:
         if e.size().width() > e.size().height() and self.flow() == QListView.TopToBottom:
             self.setFlow(QListView.LeftToRight)
-            print("qlist let to right")
             for i in range(0, self.count()):
                 self.item(i).setLeftToRight()
         
@@ -385,7 +421,6 @@ class DragListWidget(QListWidget):
             self.setFlow(QListView.TopToBottom)
             for i in range(0, self.count()):
                 self.item(i).setTopToBottom()
-            print("qlist top to bottom")
         return super().resizeEvent(e)
 
     def createContextMenu(self) -> QMenu:
@@ -446,11 +481,11 @@ class DragListWidget(QListWidget):
                 mname = subtypes[0]
                 subtypes = None
             if subtypes is None:
-                self.newItemMenu.addAction(mname,TriggerParamFunc(self.createDefaultObject, manager) )
+                self.newItemMenu.addAction(mname,TriggerParamFunc(self.createObject, manager) )
             else:
                 subtypeMenu = self.newItemMenu.addMenu(mname)
                 for subtype in subtypes: 
-                    subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
+                    subtypeMenu.addAction(subtype,TriggerParamFunc(self.createObject, manager,subtype) )
         """
         self.copyAction = QAction('Copy',self)
         self.copyAction.triggered.connect(self.copySelection)
@@ -469,17 +504,6 @@ class DragListWidget(QListWidget):
         self.savePanelImageAction = QAction('Save Image',self)
         self.savePanelImageAction.triggered.connect(self.saveImage)
         """
-
-    def editItem(self, item: QListWidgetItem) -> None:
-        print(f"edit item: {item.getName()}")
-        return super().editItem(item)
-
-    def createDefaultObject(self, manager, subtype = None):
-        """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
-        item = ObjectPanelItem(parent=self, manager=manager, subtype=subtype)
-        item.setName(f"Item Name")
-        self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
-
 
     active=True
     def contextMenuEvent(self, event):
@@ -1372,12 +1396,12 @@ class LpyObjectPanelDock (QDockWidget):
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout.setObjectName(name+"verticalLayout")
         
-        # self.objectpanel = QFrame(self.dockWidgetContents)
-        # self.view = ObjectListDisplay(self,panelmanager)
-        self.view = DragListWidget(self, panelmanager)
-        self.objectpanel = self.view #objectpanel was the QScrollArea, but QListWidget inherits from QAbstractScrollArea, so you can use it directly.
+        self.objectpanel = QScrollArea(self.dockWidgetContents)
+        self.view = DragListWidget(self,panelmanager)
         self.view.dock = self
         self.view.scroll = self.objectpanel
+        self.objectpanel.setWidget(self.view)
+        self.objectpanel.setWidgetResizable(True)
         self.objectpanel.setObjectName(name+"panelarea")
         
         self.verticalLayout.addWidget(self.objectpanel)
@@ -1389,7 +1413,6 @@ class LpyObjectPanelDock (QDockWidget):
         
         self.view.valueChanged.connect(self.__updateStatus)
         self.view.AutomaticUpdate.connect(self.__transmit_autoupdate)
-        # self.view.selectionChanged.connect(self.endNameEditing)
         self.view.itemSelectionChanged.connect(self.endNameEditing)
         self.view.renameRequest.connect(self.displayName)
         self.objectNameEdit.editingFinished.connect(self.updateName)
@@ -1440,16 +1463,17 @@ class LpyObjectPanelDock (QDockWidget):
                 self.objectNameEdit.hide()            
             self.dockNameEdition = False
         
-    def setObjects(self,objects):
-        self.view.setObjects(objects)
+    def setObjects(self,objects) -> None:
+        return None
+        # self.view.setObjects(objects)
 
-    def appendObjects(self,objects):
+    def appendObjects(self,objects) -> None:
         self.view.appendObjects(objects)
 
-    def getObjects(self):
-        return self.view.objects
+    def getObjects(self) -> list:
+        return self.view.getObjects()
 
-    def getObjectsCopy(self):
+    def getObjectsCopy(self) -> list:
         return self.view.getObjectsCopy()
 
     def setStatusBar(self,st):
@@ -1461,8 +1485,9 @@ class LpyObjectPanelDock (QDockWidget):
             self.statusBar.showMessage(msg,timeout)
         else:
             print(msg)    
-    def __updateStatus(self,i=None):
-        if not i is None and 0 <= i < len(self.view.objects) and self.view.objects[i][0].managePrimitive():
+    def __updateStatus(self, i=None):
+
+        if not i is None and 0 <= i < self.view.count() and self.view.item(i).getManager().managePrimitive():
             self.valueChanged.emit(True)
         else:
             self.valueChanged.emit(False)
@@ -1499,6 +1524,7 @@ class LpyObjectPanelDock (QDockWidget):
             self.setVisible(info['visible'])
 
 def main():
+    import pprint
     qapp = QApplication([])
     m = LpyObjectPanelDock(None,'TestPanel')
     m.show()

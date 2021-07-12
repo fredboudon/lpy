@@ -1,4 +1,5 @@
 
+from copy import deepcopy
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QDialog, QInputDialog, QSizePolicy, QWidget
@@ -65,7 +66,7 @@ class QCustomQWidget (QtGui.QWidget):
         self.setMinimumHeight(1)
         self.textUpQLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         # self.panelItem.setSizeHint(QSize(WIDGET_MIN_ORTHO_SIZE, WIDGET_MIN_ORTHO_SIZE))
-        print("setLeftToRight")
+        # print("setLeftToRight")
 
     def setTopToBottom(self):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
@@ -73,7 +74,7 @@ class QCustomQWidget (QtGui.QWidget):
         self.setMinimumHeight(WIDGET_MIN_ORTHO_SIZE)
         self.textUpQLabel.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
         # self.panelItem.setSizeHint(QSize(WIDGET_MIN_ORTHO_SIZE, WIDGET_MIN_ORTHO_SIZE))
-        print("setTopToBottom")
+        # print("setTopToBottom")
 
     def mouseDoubleClickEvent(self, a0: QtGui.QMouseEvent) -> None:
         self.panelItem.editItem()
@@ -109,9 +110,15 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
     _type: str = None
     _subtype: str = None
 
-    def __init__ (self, parent = None, manager: AbstractObjectManager = None, subtype: str = None):
+    def __init__ (self, parent = None, manager: AbstractObjectManager = None, subtype: str = None, sourceItem: object = None):
         super(ObjectPanelItem, self).__init__(parent)
-        self.createLpyResource(manager, subtype)
+        # Note: we consider our *truth* to be these QListWidgetItem.
+        # Consequently, we want them to store the "lpy" item itself, not a pointer to it.
+        # So we purposefully make a deepcopy of the sourceItem, to be sure we can trust the item stored here.
+        if sourceItem == None:
+            self.createLpyResource(manager, subtype)
+        else:
+            self._item = deepcopy(sourceItem)
         self._widget = QCustomQWidget(parent, self)
         self._widget.setIcon(QtGui.QPixmap("/home/jonathan/lpy/dummy.png"))
         self._widget.setTextDown(f"{manager.__class__}")
@@ -131,7 +138,6 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         ## (at least it was planned that way for QListViews and QListWidgets.)
         self.setData(Qt.SizeHintRole, self._widget.size())
         self.setData(Qt.UserRole, self._item)
-        self.print()
 
     def print(self):
         print(f"{self.getName()}\n\t_widget: {self._widget}\n\t_item: {self._item}\n\t_manager: {self._manager}")
@@ -162,6 +168,12 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
     
     def saveItem(self, item: object):
         self._item = item
+    
+    def getItem(self) -> object:
+        return self._item
+
+    def getManager(self) -> AbstractObjectManager:
+        return self._manager
 
     def getWidget(self) -> QtWidgets.QWidget:
         return self._widget

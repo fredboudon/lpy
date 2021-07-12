@@ -9,7 +9,7 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtOpenGL import QGLWidget
-from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QWidget
+from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QOpenGLWidget, QWidget
 from .abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
@@ -72,7 +72,6 @@ class ObjectEditorDialog(QMainWindow):
 
         self.verticalLayout = QVBoxLayout(self.mainWidget)
         self.verticalLayout.setSpacing(CONTENT_SPACING)
-        # self.verticalLayout.setContentsMargins(2, 2, 2, 2)
         self.verticalLayout.setObjectName("verticalLayout")
 
         self._menubar = QMenuBar(self)
