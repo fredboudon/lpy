@@ -159,7 +159,7 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
         dialog.textValueSelected.connect(self.setName) #textValueSelected = OK button pressed
         dialog.show()
     
-    def saveItem(self, item: object):
+    def setItem(self, item: object):
         self._item = item
     
     def getItem(self) -> object:
@@ -215,7 +215,7 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
         manager.setObjectToEditor(dialog.getEditor(), data)
         dialog.setWindowTitle(f"{manager.typename} Editor - {name}")
         dialog.thumbnailChanged.connect(item.setThumbnail)
-        dialog.valueChanged.connect(item.saveItem)
+        dialog.valueChanged.connect(item.setItem)
         dialog.show()
 
     def createEditor(self, parent: QtWidgets.QWidget, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex):
