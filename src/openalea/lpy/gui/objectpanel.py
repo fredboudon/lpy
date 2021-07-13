@@ -1,3 +1,4 @@
+from PyQt5.QtWidgets import QTreeWidget
 from openalea.plantgl.all import *
 from openalea.plantgl.gui import qt
 from OpenGL.GL import *
@@ -317,6 +318,7 @@ class ObjectPanelManager(QObject):
 
 
 from .objectpanelitem import ObjectPanelItem
+from .objectpanelitem import ItemDelegate
 
 class DragListWidget(QListWidget):
 
@@ -343,10 +345,12 @@ class DragListWidget(QListWidget):
         self.setDragEnabled(True)
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setDefaultDropAction(Qt.MoveAction)
-        self.setFlow(QListView.TopToBottom)
+        #self.setFlow(QListView.TopToBottom)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
+        self.delegate = ItemDelegate(self)
+        self.setItemDelegate(self.delegate)
         ## I think these don't work in QListWidget, only in QListView.
         # self.setSelectionMode(QAbstractItemView.ExtendedSelection) 
         # self.setEditTriggers(QAbstractItemView.DoubleClicked) #  | QAbstractItemView.EditKeyPressed
@@ -378,7 +382,7 @@ class DragListWidget(QListWidget):
         """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
         item = ObjectPanelItem(parent=self, manager=manager, subtype=subtype)
         item.setName(f"Item Name")
-        self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
+        # self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
 
     def getObjects(self):
         items = []
@@ -403,24 +407,19 @@ class DragListWidget(QListWidget):
         manager, item = object
         item = ObjectPanelItem(parent=self, manager=manager, sourceItem = item)
         item.setName(f"Item Name")
-        self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
+        # self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
         self.valueChanged.emit(self.count() - 1) #emitting the position of the item
-
-    # I think this is not used by the QListWidget only by QListView
-    # def editItem(self, item: QListWidgetItem) -> None:
-    #     print(f"edit item: {item.getName()}")
-    #     return super().editItem(item)
 
     def resizeEvent(self, e: QtGui.QResizeEvent) -> None:
         if e.size().width() > e.size().height() and self.flow() == QListView.TopToBottom:
             self.setFlow(QListView.LeftToRight)
-            for i in range(0, self.count()):
-                self.item(i).setLeftToRight()
+            # for i in range(0, self.count()):
+            #     self.item(i).setLeftToRight()
         
         if e.size().width() < e.size().height() and self.flow() == QListView.LeftToRight:
             self.setFlow(QListView.TopToBottom)
-            for i in range(0, self.count()):
-                self.item(i).setTopToBottom()
+            # for i in range(0, self.count()):
+            #     self.item(i).setTopToBottom()
         return super().resizeEvent(e)
 
     def createContextMenu(self) -> QMenu:
@@ -1527,6 +1526,8 @@ def main():
     import pprint
     qapp = QApplication([])
     m = LpyObjectPanelDock(None,'TestPanel')
+    # pp = pprint.PrettyPrinter(indent=2)
+    # pp.pprint(m.objectpanel.getObjects())
     m.show()
     qapp.exec_()
 
