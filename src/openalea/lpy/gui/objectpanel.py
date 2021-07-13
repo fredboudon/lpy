@@ -330,6 +330,7 @@ class DragListWidget(QListWidget):
     panelManager: ObjectPanelManager = None
     plugins: dict[AbstractObjectManager] = {}
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
+    isActive: bool = True
 
     def __init__(self, parent: QWidget = None, panelmanager: ObjectPanelManager = None) -> None:
         super().__init__(parent=parent)
@@ -342,10 +343,11 @@ class DragListWidget(QListWidget):
         self.setMinimumSize(96, 96)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAcceptDrops(True)
-        self.setDragEnabled(True)
-        self.setDragDropMode(QAbstractItemView.DragDrop)
-        self.setDefaultDropAction(Qt.MoveAction)
-        #self.setFlow(QListView.TopToBottom)
+        # self.setDragEnabled(True)
+        # self.setDragDropMode(QAbstractItemView.DragDrop)
+        # self.setDefaultDropAction(Qt.MoveAction)
+        self.setFlow(QListView.TopToBottom)
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
