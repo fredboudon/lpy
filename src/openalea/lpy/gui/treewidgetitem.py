@@ -46,6 +46,8 @@ class TreeWidgetItem(QTreeWidgetItem):
         nameString = "Group"
         if self.isLpyResource():
             nameString = f"{self._lpyresource.__class__}"
+        elif self.parent() != None:
+            nameString = f"Sub-{self.parent().getName()}"
 
         self.setData(0, Qt.DisplayRole, nameString)
         self.setData(0, QT_USERROLE_LPYRESOURCE, self._lpyresource )
@@ -69,7 +71,7 @@ class TreeWidgetItem(QTreeWidgetItem):
     def setName(self, text):
         self.setData(0, Qt.DisplayRole, text)
     
-    def getName(self):
+    def getName(self) -> str:
         return self.data(0, Qt.DisplayRole)
 
     def setThumbnail(self, pixmap):
@@ -77,7 +79,7 @@ class TreeWidgetItem(QTreeWidgetItem):
         tem_pixmap = self._pixmap.scaled(THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, QtCore.Qt.KeepAspectRatio)
         self.setData(0, Qt.DecorationRole, tem_pixmap)
 
-    def getThumbnail(self):
+    def getThumbnail(self) -> QPixmap:
         return self.data(0, Qt.DecorationRole)
     
     def getLpyResource(self) -> object:
@@ -88,6 +90,9 @@ class TreeWidgetItem(QTreeWidgetItem):
     
     def getManager(self) -> AbstractObjectManager:
         return self._manager
+
+    def getManagerLpyResourceTuple(self) -> tuple:
+        return (self._manager, self._lpyresource)
 
     def isLpyResource(self) -> bool:
         return (self._lpyresource != None)

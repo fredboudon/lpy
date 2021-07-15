@@ -5,6 +5,8 @@ from openalea.plantgl.gui.qt.QtCore import *
 from openalea.plantgl.gui.qt.QtGui import *
 from openalea.plantgl.gui.qt.QtWidgets import *
 import typing
+import json
+
 
 from openalea.lpy.gui.treewidgetitem import TreeItemDelegate
 
@@ -60,7 +62,7 @@ class TreeWidget(QTreeWidget):
         
         ## add custom context menu.
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.myListWidgetContext)
+        self.customContextMenuRequested.connect(self.contextMenuRequest)
 
     def createExampleObjects(self):
         for mname, manager in self.plugins:
@@ -74,6 +76,11 @@ class TreeWidget(QTreeWidget):
                 for subtype in subtypes: 
                     # subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
                     self.createLpyResource(manager, subtype)
+            
+        item: list = [self]
+        for i in range(3):
+            item.append(TreeWidgetItem(parent=item[len(item) - 1], manager=None, subtype=None, parentWidget=self))
+
 
     def createLpyResourceFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
         """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
@@ -94,8 +101,44 @@ class TreeWidget(QTreeWidget):
             parent.setExpanded(True)
 
     ## TODO: change these functions below to deal with tree structure
+    ## ===== functions to interface with LpyEditor =====
+    
+    def getChildrenTreeDemo(self):
+        data = QObject.sender(self).data()
+        tree: dict = {}
+        tree = self.getChildrenTree(data)
+        pprint.pprint(tree)
+        
+    def getChildrenTree(self, startItem: TreeWidgetItem) -> dict:
+        def getItemcontent(startItem: TreeWidgetItem):
+            if startItem.isLpyResource():
+                return startItem.getManagerLpyResourceTuple()
+            elif startItem.childCount() == 0:
+                return {}
+            else:
+                d = { }
+                for i in range(startItem.childCount()):
+                    item = startItem.child(i)
+                    d[item.getName()] = getItemcontent(item)
+                return d
+        
+        tree = {}
+        if isinstance(startItem, TreeWidget):
+            for i in range(self.topLevelItemCount()):
+                tree[self.topLevelItem(i).getName()] = getItemcontent(self.topLevelItem(i))
+        elif isinstance(startItem, TreeWidgetItem):
+            tree = {startItem.getName(): getItemcontent(startItem)}
+        return tree
+  
+
     """
     def getObjects(self):
+        ## here's the gist: we'll send a dict "itemTree" 
+        ## - itemTree["GroupName"] -> dict
+        ## - itemTree["ItemName"] -> 
+        itemTree: dict
+        for i in range(self.topLevelItemCount() - 1):
+
         items = []
         for x in range(self.count() - 1):
             items.append(self.item(x))
@@ -123,7 +166,7 @@ class TreeWidget(QTreeWidget):
     """
 
     ## ===== Context menu =====
-    def myListWidgetContext(self,position):
+    def contextMenuRequest(self,position):
 
         contextmenu = QMenu(self)
         
@@ -177,37 +220,35 @@ class TreeWidget(QTreeWidget):
             menuActions["Edit"].setFont(f)
             menuActions["Edit"].setData(self.itemAt(position))
             menuActions["Edit"].triggered.connect(self.editItem)
+
             menuActions["Delete"] = QAction('Delete',self)
-            menuActions["Delete"].setData(position)
+            # no need for data since we're relying on self.selectedItems to delete multiple items
             menuActions["Delete"].triggered.connect(self.deleteItem)
+
             menuActions["Rename"] = QAction("Rename", self)
             menuActions["Rename"].setData(self.itemAt(position))
             menuActions["Rename"].triggered.connect(self.renameItem)
+
+            menuActions["Get item tree from here"] = QAction("Get item tree from here", self)
+            menuActions["Get item tree from here"].setData(self.itemAt(position))
+            menuActions["Get item tree from here"].triggered.connect(self.getChildrenTreeDemo)
+        else:
+            menuActions["Get item tree"] = QAction("Get item tree", self)
+            menuActions["Get item tree"].setData(self)
+            menuActions["Get item tree"].triggered.connect(self.getChildrenTreeDemo)
 
         contextmenu.addActions(menuActions.values())
 
         contextmenu.exec_(self.mapToGlobal(position))
 
     def deleteItem(self):
-
-        position = QObject.sender(self).data()
-        currentItem: TreeWidgetItem = self.itemAt(position)
-        currentIndex: QModelIndex = self.indexAt(position)
-        print(currentItem.parent())
-        if currentItem.parent() != None:
-            currentItem.parent().removeChild(currentItem)
-        else:        
-            removedItem: TreeWidgetItem = self.takeTopLevelItem(self.indexFromItem(currentItem).row())
-    
-        
-        ## deleting all selected items (right-clicking on an item selects it any way)
-        # if (len(self.selectedItems()) > 0):
-        #     for item in self.selectedItems():
-        #         warnings.warn("Remember to implement a QMessageBox confirming the deletion.")   
-        #         print(item)
-
-        #         self.findItems()
-        #         # TODO: implement remove on tree
+        # currentItem: TreeWidgetItem = QObject.sender(self).data()
+        if (len(self.selectedItems()) > 0):
+            for item in self.selectedItems():
+                if item.parent() != None:
+                    item.parent().removeChild(item)
+                else:        
+                    item: TreeWidgetItem = self.takeTopLevelItem(self.indexFromItem(item).row())
 
     def renameItem(self):
         currentItem: TreeWidgetItem = QObject.sender(self).data()
