@@ -40,7 +40,8 @@ class TreeWidget(QTreeWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAcceptDrops(True)
 
-        ## Drag and drop are disabled, they make the items disappear on macOS (wtf)
+        ## Drag and drop are disabled
+        ## I get "TypeError: cannot pickle 'TreeWidgetItem' object"
         # self.setDragEnabled(True)
         # self.setDragDropMode(QAbstractItemView.DragDrop)
         # self.setDefaultDropAction(Qt.MoveAction)
@@ -48,7 +49,7 @@ class TreeWidget(QTreeWidget):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        
+        self.setColumnCount(1)
         self.delegate = TreeItemDelegate(self)
         self.setItemDelegate(self.delegate)
 
@@ -68,23 +69,27 @@ class TreeWidget(QTreeWidget):
                 mname = subtypes[0]
                 subtypes = None
             if subtypes is None:
-                self.createObject(manager)
+                self.createLpyResource(manager)
             else:
                 for subtype in subtypes: 
                     # subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
-                    self.createObject(manager, subtype)
+                    self.createLpyResource(manager, subtype)
 
-    def createObject(self):
+    def createLpyResourceFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
         """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
         data: dict = QObject.sender(self).data()
         pprint.pprint(data)
         manager = data["manager"]
         subtype = data["subtype"]
         parent = data["parent"]
+        self.createLpyResource(manager, subtype, parent)
 
+    def createLpyResource(self, manager, subtype=None, parent=None):
         # creating an Item with this Widget as parent automatically adds it in the list.
+        if parent == None:
+            parent = self
         item = TreeWidgetItem(parent=parent, manager=manager, subtype=subtype, parentWidget=self)
-        
+
         if isinstance(parent, TreeWidgetItem):
             parent.setExpanded(True)
 
@@ -116,6 +121,7 @@ class TreeWidget(QTreeWidget):
         # self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
         self.valueChanged.emit(self.count() - 1) #emitting the position of the item
     """
+
     ## ===== Context menu =====
     def myListWidgetContext(self,position):
 
@@ -133,7 +139,7 @@ class TreeWidget(QTreeWidget):
 
         if clickedItem == None or (not clickedItem.isLpyResource()):
             newGroupAction = QAction(newGroupString, self)
-            newGroupAction.triggered.connect(self.createObject)
+            newGroupAction.triggered.connect(self.createLpyResourceFromMenu)
             actionGroupData = {"manager": None, "subtype": None, "parent": parent}
             newGroupAction.setData(actionGroupData)
             contextmenu.addAction(newGroupAction)
@@ -147,7 +153,7 @@ class TreeWidget(QTreeWidget):
                     subtypes = None
                 if subtypes is None:
                     createAction = QAction(mname, self)
-                    createAction.triggered.connect(self.createObject)
+                    createAction.triggered.connect(self.createLpyResourceFromMenu)
                     createActionData = {"manager": manager, "subtype": None, "parent": parent}
                     createAction.setData(createActionData)
                     self.newItemMenu.addAction(createAction)
@@ -155,7 +161,7 @@ class TreeWidget(QTreeWidget):
                     subtypeMenu = self.newItemMenu.addMenu(mname)
                     for subtype in subtypes: 
                         createAction = QAction(subtype, self)
-                        createAction.triggered.connect(self.createObject)
+                        createAction.triggered.connect(self.createLpyResourceFromMenu)
                         createActionDataWithSubtype = {"manager": manager, "subtype": subtype, "parent": parent}
                         createAction.setData(createActionDataWithSubtype)
                         subtypeMenu.addAction(createAction)
@@ -172,7 +178,7 @@ class TreeWidget(QTreeWidget):
             menuActions["Edit"].setData(self.itemAt(position))
             menuActions["Edit"].triggered.connect(self.editItem)
             menuActions["Delete"] = QAction('Delete',self)
-            menuActions["Delete"].setData(self.itemAt(position))
+            menuActions["Delete"].setData(position)
             menuActions["Delete"].triggered.connect(self.deleteItem)
             menuActions["Rename"] = QAction("Rename", self)
             menuActions["Rename"].setData(self.itemAt(position))
@@ -183,11 +189,25 @@ class TreeWidget(QTreeWidget):
         contextmenu.exec_(self.mapToGlobal(position))
 
     def deleteItem(self):
+
+        position = QObject.sender(self).data()
+        currentItem: TreeWidgetItem = self.itemAt(position)
+        currentIndex: QModelIndex = self.indexAt(position)
+        print(currentItem.parent())
+        if currentItem.parent() != None:
+            currentItem.parent().removeChild(currentItem)
+        else:        
+            removedItem: TreeWidgetItem = self.takeTopLevelItem(self.indexFromItem(currentItem).row())
+    
+        
         ## deleting all selected items (right-clicking on an item selects it any way)
-        if (len(self.selectedItems()) > 0):
-            for item in self.selectedItems():
-                warnings.warn("Remember to implement a QMessageBox confirming the deletion.")   
-                # TODO: implement remove on tree
+        # if (len(self.selectedItems()) > 0):
+        #     for item in self.selectedItems():
+        #         warnings.warn("Remember to implement a QMessageBox confirming the deletion.")   
+        #         print(item)
+
+        #         self.findItems()
+        #         # TODO: implement remove on tree
 
     def renameItem(self):
         currentItem: TreeWidgetItem = QObject.sender(self).data()
@@ -205,6 +225,7 @@ class TreeWidget(QTreeWidget):
 def main():
     qapp = QApplication([])
     m = TreeWidget(None, None)
+    m.createExampleObjects()
     m.show()
     qapp.exec_()
 

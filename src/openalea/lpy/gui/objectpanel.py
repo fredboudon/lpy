@@ -260,14 +260,15 @@ class LpyObjectPanelDock (QDockWidget):
         self.verticalLayout.setObjectName(name+"verticalLayout")
         
         self.objectpanel = QScrollArea(self.dockWidgetContents)
-        self.splitter = QSplitter(self)
-        self.view = DragListWidget(self,panelmanager)
-        self.view.dock = self
-
+        self.splitter: QSplitter = QSplitter(self)
+        self.listView = DragListWidget(self,panelmanager)
         self.treeView = TreeWidget(self, panelmanager)
 
+        self.splitter.dock = self
+
+
         self.splitter.addWidget(self.treeView)
-        self.splitter.addWidget(self.view)
+        self.splitter.addWidget(self.listView)
 
         self.objectpanel.setWidget(self.splitter)
         self.objectpanel.setWidgetResizable(True)
@@ -280,10 +281,11 @@ class LpyObjectPanelDock (QDockWidget):
         self.objectNameEdit.hide()
         self.setWidget(self.dockWidgetContents)
         
-        self.view.valueChanged.connect(self.__updateStatus)
-        self.view.AutomaticUpdate.connect(self.__transmit_autoupdate)
-        self.view.itemSelectionChanged.connect(self.endNameEditing)
-        self.view.renameRequest.connect(self.displayName)
+        self.treeView.valueChanged.connect(self.__updateStatus)
+        self.treeView.AutomaticUpdate.connect(self.__transmit_autoupdate)
+        self.treeView.itemSelectionChanged.connect(self.endNameEditing)
+        self.treeView.renameRequest.connect(self.displayName)
+
         self.objectNameEdit.editingFinished.connect(self.updateName)
         self.dockNameEdition = False
         self.nameEditorAutoHide = True
@@ -297,10 +299,10 @@ class LpyObjectPanelDock (QDockWidget):
             self.fileDropEvent(str(event.mimeData().urls()[0].toLocalFile()))
 
     def fileDropEvent(self,fname):
-        for manager in self.view.managers.values():
+        for manager in self.treeView.managers.values():
             if manager.canImportData(fname):
                 objects = manager.importData(fname)
-                self.view.appendObjects([(manager,i) for i in objects])    
+                self.treeView.appendObjects([(manager,i) for i in objects])    
                 self.showMessage('import '+str(len(objects))+" object(s) from '"+fname+"'.",5000)
                 return
 
@@ -316,14 +318,14 @@ class LpyObjectPanelDock (QDockWidget):
         else:
             if self.nameEditorAutoHide : 
                 self.objectNameEdit.show()
-            self.objectNameEdit.setText(self.view.getSelectedObjectName())
+            self.objectNameEdit.setText(self.treeView.getSelectedObjectName())
             self.objectNameEdit.setFocus()
 
     def updateName(self):
         if not self.dockNameEdition :
-            if self.view.hasSelection():
-                self.view.setSelectedObjectName(str(self.objectNameEdit.text()))
-                self.view.doUpdate()
+            if self.treeView.hasSelection():
+                self.treeView.setSelectedObjectName(str(self.objectNameEdit.text()))
+                self.treeView.doUpdate()
                 if self.nameEditorAutoHide : 
                     self.objectNameEdit.hide()
         else :
@@ -333,20 +335,20 @@ class LpyObjectPanelDock (QDockWidget):
             self.dockNameEdition = False
         
     def setObjects(self,objects) -> None:
-        self.view.setObjects(objects)
+        self.treeView.setObjects(objects)
 
     def appendObjects(self,objects) -> None:
-        self.view.appendObjects(objects)
+        self.treeView.appendObjects(objects)
 
     def getObjects(self) -> list:
-        return self.view.getObjects()
+        return self.treeView.getObjects()
 
     def getObjectsCopy(self) -> list:
-        return self.view.getObjectsCopy()
+        return self.treeView.getObjectsCopy()
 
     def setStatusBar(self,st):
         self.objectpanel.statusBar = st
-        self.view.statusBar = st
+        self.splitter.statusBar = st
 
     def showMessage(self,msg,timeout):
         if hasattr(self,'statusBar'):
@@ -355,7 +357,7 @@ class LpyObjectPanelDock (QDockWidget):
             print(msg)    
     def __updateStatus(self, i=None):
 
-        if not i is None and 0 <= i < self.view.count() and self.view.item(i).getManager().managePrimitive():
+        if not i is None and 0 <= i < self.treeView.count() and self.treeView.item(i).getManager().managePrimitive():
             self.valueChanged.emit(True)
         else:
             self.valueChanged.emit(False)
@@ -381,12 +383,12 @@ class LpyObjectPanelDock (QDockWidget):
                 visibility = False
             else:
                 visibility = getattr(self,'previousVisibility',True)
-        return {'name':str(self.name),'active':bool(self.view.isActive()),'visible':visibility }
+        return {'name':str(self.name),'active':bool(self.splitter.isActive()),'visible':visibility }
         
     def setInfo(self,info):
         self.setName(info['name'])
         if 'active' in info:
-            self.view.setActive(info['active'])        
+            self.treeView.setActive(info['active'])        
         if 'visible' in info:
             self.previousVisibility = info['visible']
             self.setVisible(info['visible'])
@@ -395,7 +397,7 @@ def main():
     import pprint
     qapp = QApplication([])
     m = LpyObjectPanelDock(None,'TestPanel')
-    m.view.createExampleObjects()
+    m.treeView.createExampleObjects()
     # pp = pprint.PrettyPrinter(indent=2)
     # pp.pprint(m.objectpanel.getObjects())
     m.show()

@@ -13,6 +13,9 @@ QT_USERROLE_LPYRESOURCE = Qt.UserRole
 QT_USERROLE_MANAGER = Qt.UserRole + 1
 QT_USERROLE_SELF = Qt.UserRole + 2
 
+THUMBNAIL_HEIGHT=64
+THUMBNAIL_WIDTH=64
+
 class TreeWidgetItem(QTreeWidgetItem):
 
     _parentWidget: QWidget = None
@@ -34,7 +37,11 @@ class TreeWidgetItem(QTreeWidgetItem):
             self._lpyresource = deepcopy(sourceItem)
         # if manager=None then this node is simply a group for other nodes.
         
-        self.setFlags(self.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
+        self.setFlags(self.flags() 
+                        | Qt.ItemIsEditable 
+                        | Qt.ItemIsUserCheckable
+                        | Qt.ItemIsDragEnabled	
+                        | Qt.ItemIsDropEnabled)
         
         nameString = "Group"
         if self.isLpyResource():
@@ -66,7 +73,9 @@ class TreeWidgetItem(QTreeWidgetItem):
         return self.data(0, Qt.DisplayRole)
 
     def setThumbnail(self, pixmap):
-        self.setData(0, Qt.DecorationRole, pixmap)
+        self._pixmap = pixmap # we store the original, unscaled pixmap
+        tem_pixmap = self._pixmap.scaled(THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, QtCore.Qt.KeepAspectRatio)
+        self.setData(0, Qt.DecorationRole, tem_pixmap)
 
     def getThumbnail(self):
         return self.data(0, Qt.DecorationRole)
