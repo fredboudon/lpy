@@ -1,4 +1,4 @@
-from os import supports_bytes_environ
+from os import lstat, supports_bytes_environ
 import warnings
 from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import *
@@ -22,13 +22,13 @@ from .treewidgetitem import TreeWidgetItem, TreeItemDelegate
 class TreeWidget(QTreeWidget):
 
     valueChanged = pyqtSignal(int)
-    itemSelectionChanged = pyqtSignal(int) # /!\ "selectionChanged" is already exists! Don't override already existing names!
     AutomaticUpdate = pyqtSignal()
     renameRequest = pyqtSignal(int)
 
     panelManager: object = None # type : ObjectPanelManager (type not declared to avoid circular import)
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
     isActive: bool = True
+    currentActiveGroup = None # can be TreeWidget (if top level) or TreeWidgetItem (if group)
 
     def __init__(self, parent: QWidget = None, panelmanager: object = None) -> None:
         super().__init__(parent=parent)
@@ -42,11 +42,12 @@ class TreeWidget(QTreeWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAcceptDrops(True)
 
-        ## Drag and drop are disabled
+        ## FIXME: Drag and drop are disabled
         ## I get "TypeError: cannot pickle 'TreeWidgetItem' object"
-        # self.setDragEnabled(True)
-        # self.setDragDropMode(QAbstractItemView.DragDrop)
-        # self.setDefaultDropAction(Qt.MoveAction)
+        self.setDragEnabled(True)
+        # self.setDragDropMode(QAbstractItemView.DragDrop) # ?
+        self.setDragDropMode(QAbstractItemView.InternalMove) # ?
+        self.setDefaultDropAction(Qt.MoveAction)
         
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
@@ -63,6 +64,8 @@ class TreeWidget(QTreeWidget):
         ## add custom context menu.
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.contextMenuRequest)
+        self.itemClicked.connect(self.setActiveGroup)
+
 
     def createExampleObjects(self):
         for mname, manager in self.plugins:
@@ -82,10 +85,40 @@ class TreeWidget(QTreeWidget):
             item.append(TreeWidgetItem(parent=item[len(item) - 1], manager=None, subtype=None, parentWidget=self))
 
 
+    
+    def setActiveGroup(self, item: TreeWidgetItem = None):
+        if item.isLpyResource():
+            self.currentActiveGroup = item.parent() # if you're on top level, parent() = None.
+        else:
+            self.currentActiveGroup = item
+        print(f"current active group:\t{self.currentActiveGroup}")
+        print(f"Visible LpyResources: ")
+        pprint.pprint(self.getObjects())
+    
+
+    def isLpyResource(self) -> bool:
+        return False
+
+    def getName(self) -> str:
+        return self.__str__
+    
+    def getLpyResourcesFromActiveGroup(self) -> list[object]:
+        res = []
+        if self.currentActiveGroup != None:
+            for i in range(self.currentActiveGroup.childCount()):
+                item: TreeWidgetItem = self.currentActiveGroup.child(i)
+                if item.isLpyResource():
+                    res.append(item)
+        else:
+            for i in range(self.topLevelItemCount()):
+                item: TreeWidgetItem = self.topLevelItem(i)
+                if item.isLpyResource():
+                    res.append(item)
+        return res
+        
     def createLpyResourceFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
         """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
         data: dict = QObject.sender(self).data()
-        pprint.pprint(data)
         manager = data["manager"]
         subtype = data["subtype"]
         parent = data["parent"]
@@ -99,9 +132,6 @@ class TreeWidget(QTreeWidget):
 
         if isinstance(parent, TreeWidgetItem):
             parent.setExpanded(True)
-
-    ## TODO: change these functions below to deal with tree structure
-    ## ===== functions to interface with LpyEditor =====
     
     def getChildrenTreeDemo(self):
         data = QObject.sender(self).data()
@@ -130,25 +160,18 @@ class TreeWidget(QTreeWidget):
             tree = {startItem.getName(): getItemcontent(startItem)}
         return tree
   
-
-    """
+    ## TODO: change these functions below to deal with tree structure
+    ## ===== functions to interface with LpyEditor =====
     def getObjects(self):
-        ## here's the gist: we'll send a dict "itemTree" 
-        ## - itemTree["GroupName"] -> dict
-        ## - itemTree["ItemName"] -> 
-        itemTree: dict
-        for i in range(self.topLevelItemCount() - 1):
-
-        items = []
-        for x in range(self.count() - 1):
-            items.append(self.item(x))
-        objects = list(map(lambda i: (i.getManager(), i.getItem()), items))
+        visibleLpyResources = self.getLpyResourcesFromActiveGroup()
+        objects = list(map(lambda i: (i.getManager(), i.getLpyResource()), visibleLpyResources))
         return objects
     
     def getObjectsCopy(self):
         from copy import deepcopy
         return [(m,deepcopy(o)) for m,o in self.getObjects()]
     
+    """
     def setObjects(self, objectList):
         self.clear()
         self.appendObjects(objectList)
@@ -260,7 +283,6 @@ class TreeWidget(QTreeWidget):
             self.openPersistentEditor(currentItem) # this calls the createEditor in the delegate that has been registered.
         else:
             currentItem.renameItem()
-
 
 
 def main():

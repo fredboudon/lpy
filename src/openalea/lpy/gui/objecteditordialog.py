@@ -182,3 +182,11 @@ class ObjectEditorDialog(QMainWindow):
     def __screenshot(self):
         qpixmap = self.manager.getPixmapThumbnail(self.objectView)
         self.thumbnailChanged.emit(qpixmap)
+
+    def getThumbnail(self) -> QPixmap:
+        qpixmap = self.manager.getPixmapThumbnail(self.objectView)
+        return qpixmap
+    
+    def getLpyResource(self) -> object:
+        item = self.manager.retrieveObjectFromEditor(self.objectView)
+        return item

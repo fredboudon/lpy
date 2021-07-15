@@ -283,7 +283,7 @@ class LpyObjectPanelDock (QDockWidget):
         
         self.treeView.valueChanged.connect(self.__updateStatus)
         self.treeView.AutomaticUpdate.connect(self.__transmit_autoupdate)
-        self.treeView.itemSelectionChanged.connect(self.endNameEditing)
+        # self.treeView.itemSelectionChanged.connect(self.endNameEditing)
         self.treeView.renameRequest.connect(self.displayName)
 
         self.objectNameEdit.editingFinished.connect(self.updateName)
