@@ -1,14 +1,16 @@
 
 from copy import deepcopy
-from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QDialog, QInputDialog, QListWidget, QListWidgetItem, QSizePolicy, QWidget
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import Qt
 
+from openalea.lpy.gui.treewidgetitem import TreeWidgetItem
+
 from .objecteditordialog import ObjectEditorDialog
 from .abstractobjectmanager import AbstractObjectManager
-# OBJECTPANELITEM_THUMBNAIL_SIZE = QtCore.QSize(50, 50)
+# ListWidgetItem_THUMBNAIL_SIZE = QtCore.QSize(50, 50)
 THUMBNAIL_HEIGHT=64
 THUMBNAIL_WIDTH=64
 WIDGET_MIN_ORTHO_SIZE=200 #px
@@ -100,8 +102,16 @@ class QCustomQWidget (QtGui.QWidget):
 
         return super().resizeEvent(a0)
 
+class ListWidgetItem(QListWidgetItem):
 
-class ObjectPanelItem(QtWidgets.QListWidgetItem):
+    pairedTreeWidgetItem: TreeWidgetItem = None
+    def __init__(self, parent, pairedTreeWidgetItem: TreeWidgetItem):
+        super(QListWidgetItem, self).__init__(parent)
+        self.pairedTreeWidgetItem = pairedTreeWidgetItem
+        self.setData(Qt.DisplayRole, self.pairedTreeWidgetItem.getName())
+
+
+class NotListWidgetItem(QtWidgets.QListWidgetItem):
     
     _parent: QtWidgets.QWidget = None
     _widget: QCustomQWidget = None # how to display item
@@ -111,7 +121,7 @@ class ObjectPanelItem(QtWidgets.QListWidgetItem):
     _subtype: str = None
 
     def __init__ (self, parent = None, manager: AbstractObjectManager = None, subtype: str = None, sourceItem: object = None):
-        super(ObjectPanelItem, self).__init__(parent)
+        super(ListWidgetItem, self).__init__(parent)
         # Note: we consider our *truth* to be these QListWidgetItem.
         # Consequently, we want them to store the "lpy" item itself, not a pointer to it.
         # So we purposefully make a deepcopy of the sourceItem, to be sure we can trust the item stored here.

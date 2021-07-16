@@ -240,7 +240,7 @@ class ObjectPanelManager(QObject):
             return bn+' '+str(mid+1)
         return bn
 
-from .draglistwidget import DragListWidget
+from .listWidget import ListWidget
 from .treewidget import TreeWidget
 
 class LpyObjectPanelDock (QDockWidget):
@@ -261,11 +261,10 @@ class LpyObjectPanelDock (QDockWidget):
         
         self.objectpanel = QScrollArea(self.dockWidgetContents)
         self.splitter: QSplitter = QSplitter(self)
-        self.listView = DragListWidget(self,panelmanager)
         self.treeView = TreeWidget(self, panelmanager)
+        self.listView = ListWidget(self, panelmanager, self.treeView)
 
         self.splitter.dock = self
-
 
         self.splitter.addWidget(self.treeView)
         self.splitter.addWidget(self.listView)
@@ -285,6 +284,7 @@ class LpyObjectPanelDock (QDockWidget):
         self.treeView.AutomaticUpdate.connect(self.__transmit_autoupdate)
         # self.treeView.itemSelectionChanged.connect(self.endNameEditing)
         self.treeView.renameRequest.connect(self.displayName)
+        self.treeView.activeGroupChanged.connect(self.listView.populateFromTreeWidgetItems)
 
         self.objectNameEdit.editingFinished.connect(self.updateName)
         self.dockNameEdition = False

@@ -4,8 +4,6 @@ from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import *
 from openalea.plantgl.gui.qt.QtGui import *
 from openalea.plantgl.gui.qt.QtWidgets import *
-import typing
-import json
 
 
 from openalea.lpy.gui.treewidgetitem import TreeItemDelegate
@@ -16,7 +14,6 @@ import pprint
 
 from .objectpanelcommon import *
 
-from .objectpanelitem import ObjectPanelItem
 from .treewidgetitem import TreeWidgetItem, TreeItemDelegate
 
 class TreeWidget(QTreeWidget):
@@ -24,11 +21,12 @@ class TreeWidget(QTreeWidget):
     valueChanged = pyqtSignal(int)
     AutomaticUpdate = pyqtSignal()
     renameRequest = pyqtSignal(int)
+    activeGroupChanged = pyqtSignal()
 
     panelManager: object = None # type : ObjectPanelManager (type not declared to avoid circular import)
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
     isActive: bool = True
-    currentActiveGroup = None # can be TreeWidget (if top level) or TreeWidgetItem (if group)
+    activeGroup = None # can be TreeWidget (if top level) or TreeWidgetItem (if group)
 
     def __init__(self, parent: QWidget = None, panelmanager: object = None) -> None:
         super().__init__(parent=parent)
@@ -60,7 +58,8 @@ class TreeWidget(QTreeWidget):
         self.setEditTriggers(self.editTriggers() | QAbstractItemView.DoubleClicked)
 
         self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())        
-        
+        self.setActiveGroup(None)
+
         ## add custom context menu.
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.contextMenuRequest)
@@ -87,32 +86,34 @@ class TreeWidget(QTreeWidget):
 
     
     def setActiveGroup(self, item: TreeWidgetItem = None):
-        if item.isLpyResource():
-            self.currentActiveGroup = item.parent() # if you're on top level, parent() = None.
+        if item == None:
+            self.activeGroup = None
+        elif item.isLpyResource():
+            self.activeGroup = item.parent() # if you're on top level, parent() = None.
         else:
-            self.currentActiveGroup = item
-        print(f"current active group:\t{self.currentActiveGroup}")
+            self.activeGroup = item
+        print(f"current active group:\t{self.activeGroup}")
         print(f"Visible LpyResources: ")
         pprint.pprint(self.getObjects())
+        self.activeGroupChanged.emit()
     
-
     def isLpyResource(self) -> bool:
         return False
 
     def getName(self) -> str:
         return self.__str__
     
-    def getLpyResourcesFromActiveGroup(self) -> list[object]:
-        res = []
-        if self.currentActiveGroup != None:
-            for i in range(self.currentActiveGroup.childCount()):
-                item: TreeWidgetItem = self.currentActiveGroup.child(i)
-                if item.isLpyResource():
+    def getItemsFromActiveGroup(self, withGroups: bool = False) -> list[TreeWidgetItem]:
+        res: list[TreeWidgetItem] = []
+        if self.activeGroup != None:
+            for i in range(self.activeGroup.childCount()):
+                item: TreeWidgetItem = self.activeGroup.child(i)
+                if item.isLpyResource() or withGroups:
                     res.append(item)
         else:
             for i in range(self.topLevelItemCount()):
                 item: TreeWidgetItem = self.topLevelItem(i)
-                if item.isLpyResource():
+                if item.isLpyResource() or withGroups:
                     res.append(item)
         return res
         
@@ -163,7 +164,7 @@ class TreeWidget(QTreeWidget):
     ## TODO: change these functions below to deal with tree structure
     ## ===== functions to interface with LpyEditor =====
     def getObjects(self):
-        visibleLpyResources = self.getLpyResourcesFromActiveGroup()
+        visibleLpyResources = self.getItemsFromActiveGroup(withGroups=False)
         objects = list(map(lambda i: (i.getManager(), i.getLpyResource()), visibleLpyResources))
         return objects
     
