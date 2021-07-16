@@ -107,8 +107,8 @@ class ListWidgetItem(QListWidgetItem):
     pairedTreeWidgetItem: TreeWidgetItem = None
     def __init__(self, parent, pairedTreeWidgetItem: TreeWidgetItem):
         super(QListWidgetItem, self).__init__(parent)
-        self.pairedTreeWidgetItem = pairedTreeWidgetItem
-        self.setData(Qt.DisplayRole, self.pairedTreeWidgetItem.getName())
+        # self.pairedTreeWidgetItem = pairedTreeWidgetItem
+        self.setData(Qt.DisplayRole, deepcopy(pairedTreeWidgetItem.getName()))
 
 
 class NotListWidgetItem(QtWidgets.QListWidgetItem):

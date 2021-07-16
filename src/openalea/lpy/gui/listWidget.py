@@ -1,3 +1,4 @@
+from PyQt5.QtCore import QSize
 from PyQt5.QtWidgets import QDialog, QSplitter, QTreeWidget
 from openalea.plantgl.all import *
 from openalea.plantgl.gui import qt
@@ -21,6 +22,9 @@ from .listWidgetItem import ListWidgetItem
 from .listWidgetItem import ItemDelegate
 from .treewidget import TreeWidget
 from .treewidget import TreeWidgetItem
+
+GRID_SIZE_PX = 96
+
 
 class ListWidget(QListWidget):
 
@@ -49,19 +53,28 @@ class ListWidget(QListWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         ## Drag and drop are disabled, they make the items disappear on macOS (wtf)
+        self.setWrapping(True)
+        # self.setAcceptDrops(True)
         self.setDragEnabled(True)
-        self.setDragDropMode(QAbstractItemView.InternalMove)
-        self.setDefaultDropAction(Qt.MoveAction)
-        
-        self.setFlow(QListView.TopToBottom)
+
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.setFlow(QListView.LeftToRight)
+
+        self.setResizeMode(QListView.Adjust)
         
         self.delegate = ItemDelegate(self)
         self.setItemDelegate(self.delegate)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+        ## You should not set this for macOS 
+        ## and only use setDragDropMode(QAbstractItemView.InternalMove)
+        # self.setDefaultDropAction(Qt.MoveAction) 
+        # self.setMovement(QListView.Snap)
 
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection) 
+        self.setGridSize(QSize(GRID_SIZE_PX, GRID_SIZE_PX))
+
         self.setEditTriggers(self.editTriggers() | QAbstractItemView.DoubleClicked)
 
         self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())        
