@@ -1,12 +1,10 @@
 from os import lstat, supports_bytes_environ
+import pickle
 import warnings
 from openalea.plantgl.gui.qt import QtCore, QtGui, QtWidgets
 from openalea.plantgl.gui.qt.QtCore import *
 from openalea.plantgl.gui.qt.QtGui import *
 from openalea.plantgl.gui.qt.QtWidgets import *
-
-
-from openalea.lpy.gui.treewidgetitem import TreeItemDelegate
 
 from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
 from .objectmanagers import get_managers
@@ -14,57 +12,72 @@ import pprint
 
 from .objectpanelcommon import *
 
-from .treewidgetitem import TreeWidgetItem, TreeItemDelegate
+from .treeitem import TreeItem, TreeItemDelegate
 
-class TreeWidget(QTreeWidget):
+class TreeView(QTreeView):
 
     valueChanged = pyqtSignal(int)
     AutomaticUpdate = pyqtSignal()
     renameRequest = pyqtSignal(int)
-    activeGroupChanged = pyqtSignal()
+    updateList = pyqtSignal()
 
     panelManager: object = None # type : ObjectPanelManager (type not declared to avoid circular import)
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
     isActive: bool = True
-    activeGroup = None # can be TreeWidget (if top level) or TreeWidgetItem (if group)
+    activeGroup = None # can be TreeWidget (if top level) or TreeItem (if group)
 
-    def __init__(self, parent: QWidget = None, panelmanager: object = None) -> None:
+    lpyResourceStore: dict[object] = {}
+
+    def __init__(self, parent: QWidget = None, panelmanager: object = None, model: QStandardItemModel = None) -> None:
         super().__init__(parent=parent)
         self.panelManager = panelmanager
-        palette = QtGui.QPalette()
-        palette.setColor(QtGui.QPalette.Background, Qt.black)
-        self.setAutoFillBackground(True)
-        self.setPalette(palette)
-    
+
         self.setMinimumSize(96, 96)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAcceptDrops(True)
 
-        ## FIXME: Drag and drop are disabled
-        ## I get "TypeError: cannot pickle 'TreeWidgetItem' object"
         self.setDragEnabled(True)
-        # self.setDragDropMode(QAbstractItemView.DragDrop) # ?
-        self.setDragDropMode(QAbstractItemView.InternalMove) # ?
+        self.setDragDropMode(QAbstractItemView.InternalMove)
         self.setDefaultDropAction(Qt.MoveAction)
-        
+        self.setHeaderHidden(False)
+
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self.setColumnCount(1)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.delegate = TreeItemDelegate(self)
+        self.delegate.setLpyResourceStore(self.lpyResourceStore)
+        # self.delegate.setParentWidget(self)
         self.setItemDelegate(self.delegate)
 
         self.setSelectionMode(QAbstractItemView.ExtendedSelection) 
         self.setEditTriggers(self.editTriggers() | QAbstractItemView.DoubleClicked)
 
         self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())        
-        self.setActiveGroup(None)
+        self.setActiveGroup()
 
         ## add custom context menu.
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.contextMenuRequest)
-        self.itemClicked.connect(self.setActiveGroup)
+        # self.selectionChanged.connect(self.setActiveGroup) #FIXME: connect selection change probably by reimplementation
+        
+        self.setModel(model)
 
+    def createLpyResource(self, manager, subtype=None, parent=None) -> TreeItem:
+        # creating an Item with this Widget as parent automatically adds it in the list.
+        item = TreeItem(parent=parent, manager=manager, subtype=subtype, store=self.lpyResourceStore)
+        
+        model: QStandardItemModel = self.model()
+        if parent == None:
+            parent = model.invisibleRootItem()
+        
+        parent.appendRow(item)
+
+        # if isinstance(parent, TreeItem):
+        #     parent.setExpanded(True)
+
+        return item
 
     def createExampleObjects(self):
         for mname, manager in self.plugins:
@@ -76,26 +89,38 @@ class TreeWidget(QTreeWidget):
                 self.createLpyResource(manager)
             else:
                 for subtype in subtypes: 
-                    # subtypeMenu.addAction(subtype,TriggerParamFunc(self.createDefaultObject, manager,subtype) )
                     self.createLpyResource(manager, subtype)
+
+        topItem = self.createLpyResource(manager=None, subtype=None, parent=None)
+        model: QStandardItemModel = self.model()
+        lastitem: TreeItem = topItem
+
+        for i in range(5):
+            ## parent can be either None (root item) or a QStandardItem. But it can't be the QTreeView (it could have been the QListWidget because widgets interact differently)
+            newItem = self.createLpyResource(manager=None, subtype=None, parent=lastitem)
+            lastitem = newItem
             
-        item: list = [self]
-        for i in range(3):
-            item.append(TreeWidgetItem(parent=item[len(item) - 1], manager=None, subtype=None, parentWidget=self))
 
 
     
-    def setActiveGroup(self, item: TreeWidgetItem = None):
-        if item == None:
-            self.activeGroup = None
-        elif item.isLpyResource():
+    def setActiveGroup(self):
+        index: QModelIndex = None
+        item = None
+        if self.selectedIndexes() == []:
+            index = None
+        else:
+            index = self.selectedIndexes()[len(self.selectedIndexes()) - 1]
+            item = self.model().itemFromIndex(index)
+
+        
+        if index and item.isLpyResource():
             self.activeGroup = item.parent() # if you're on top level, parent() = None.
         else:
             self.activeGroup = item
         print(f"current active group:\t{self.activeGroup}")
         print(f"Visible LpyResources: ")
-        pprint.pprint(self.getObjects())
-        self.activeGroupChanged.emit()
+        # pprint.pprint(self.getObjects()) #FIXME: fix getObject()
+        self.updateList.emit()
     
     def isLpyResource(self) -> bool:
         return False
@@ -103,16 +128,17 @@ class TreeWidget(QTreeWidget):
     def getName(self) -> str:
         return self.__str__
     
-    def getItemsFromActiveGroup(self, withGroups: bool = False) -> list[TreeWidgetItem]:
-        res: list[TreeWidgetItem] = []
+    def getItemsFromActiveGroup(self, withGroups: bool = False) -> list[TreeItem]:
+        res: list[TreeItem] = []
         if self.activeGroup != None:
             for i in range(self.activeGroup.childCount()):
-                item: TreeWidgetItem = self.activeGroup.child(i)
+                item: TreeItem = self.activeGroup.child(i)
                 if item.isLpyResource() or withGroups:
                     res.append(item)
         else:
-            for i in range(self.topLevelItemCount()):
-                item: TreeWidgetItem = self.topLevelItem(i)
+            topLevelItemCount = self.model().rowCount()
+            for i in range(topLevelItemCount):
+                item: TreeItem = self.topLevelItem(i)
                 if item.isLpyResource() or withGroups:
                     res.append(item)
         return res
@@ -124,15 +150,6 @@ class TreeWidget(QTreeWidget):
         subtype = data["subtype"]
         parent = data["parent"]
         self.createLpyResource(manager, subtype, parent)
-
-    def createLpyResource(self, manager, subtype=None, parent=None):
-        # creating an Item with this Widget as parent automatically adds it in the list.
-        if parent == None:
-            parent = self
-        item = TreeWidgetItem(parent=parent, manager=manager, subtype=subtype, parentWidget=self)
-
-        if isinstance(parent, TreeWidgetItem):
-            parent.setExpanded(True)
     
     def getChildrenTreeDemo(self):
         data = QObject.sender(self).data()
@@ -140,8 +157,8 @@ class TreeWidget(QTreeWidget):
         tree = self.getChildrenTree(data)
         pprint.pprint(tree)
         
-    def getChildrenTree(self, startItem: TreeWidgetItem) -> dict:
-        def getItemcontent(startItem: TreeWidgetItem):
+    def getChildrenTree(self, startItem: TreeItem) -> dict:
+        def getItemcontent(startItem: TreeItem):
             if startItem.isLpyResource():
                 return startItem.getManagerLpyResourceTuple()
             elif startItem.childCount() == 0:
@@ -154,10 +171,10 @@ class TreeWidget(QTreeWidget):
                 return d
         
         tree = {}
-        if isinstance(startItem, TreeWidget):
+        if isinstance(startItem, TreeView):
             for i in range(self.topLevelItemCount()):
                 tree[self.topLevelItem(i).getName()] = getItemcontent(self.topLevelItem(i))
-        elif isinstance(startItem, TreeWidgetItem):
+        elif isinstance(startItem, TreeItem):
             tree = {startItem.getName(): getItemcontent(startItem)}
         return tree
   
@@ -183,7 +200,7 @@ class TreeWidget(QTreeWidget):
 
     def appendObject(self, object):
         manager, item = object
-        item = TreeWidgetItem(parent=self, manager=manager, sourceItem = item)
+        item = TreeItem(parent=self, manager=manager, sourceItem = item)
         item.setName(f"Item Name")
         # self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
         self.valueChanged.emit(self.count() - 1) #emitting the position of the item
@@ -197,10 +214,11 @@ class TreeWidget(QTreeWidget):
         parent = self
         newItemString = "New Item"
         newGroupString = "New Group"
-        clickedItem: TreeWidgetItem = self.itemAt(position)
+        clickedIndex: QModelIndex = self.indexAt(position)
+        clickedItem: TreeItem = self.model().itemFromIndex(clickedIndex)
 
         if clickedItem != None:
-            parent = self.itemAt(position)
+            parent = clickedIndex
             newItemString = "New Child Item"
             newGroupString = "New Child Group"
 
@@ -237,12 +255,12 @@ class TreeWidget(QTreeWidget):
             contextmenu.addSeparator()
 
         menuActions: dict = {}
-        if self.itemAt(position): # if there's an item under your mouse, create the menu for it
+        if clickedIndex: # if there's an item under your mouse, create the menu for it
             f = QFont()
             f.setBold(True)
             menuActions["Edit"] = QAction('Edit',self)
             menuActions["Edit"].setFont(f)
-            menuActions["Edit"].setData(self.itemAt(position))
+            menuActions["Edit"].setData(clickedIndex)
             menuActions["Edit"].triggered.connect(self.editItem)
 
             menuActions["Delete"] = QAction('Delete',self)
@@ -250,11 +268,11 @@ class TreeWidget(QTreeWidget):
             menuActions["Delete"].triggered.connect(self.deleteItem)
 
             menuActions["Rename"] = QAction("Rename", self)
-            menuActions["Rename"].setData(self.itemAt(position))
+            menuActions["Rename"].setData(clickedIndex)
             menuActions["Rename"].triggered.connect(self.renameItem)
 
             menuActions["Get item tree from here"] = QAction("Get item tree from here", self)
-            menuActions["Get item tree from here"].setData(self.itemAt(position))
+            menuActions["Get item tree from here"].setData(clickedIndex)
             menuActions["Get item tree from here"].triggered.connect(self.getChildrenTreeDemo)
         else:
             menuActions["Get item tree"] = QAction("Get item tree", self)
@@ -266,31 +284,42 @@ class TreeWidget(QTreeWidget):
         contextmenu.exec_(self.mapToGlobal(position))
 
     def deleteItem(self):
-        # currentItem: TreeWidgetItem = QObject.sender(self).data()
-        if (len(self.selectedItems()) > 0):
-            for item in self.selectedItems():
+
+        if (len(self.selectedIndexes()) > 0):
+            for index in self.selectedIndexes():
+                model: QStandardItemModel = self.model()
+                model.beginRemoveRows()
+                model.removeRow()
                 if item.parent() != None:
                     item.parent().removeChild(item)
                 else:        
-                    item: TreeWidgetItem = self.takeTopLevelItem(self.indexFromItem(item).row())
+                    item: TreeItem = self.takeTopLevelItem(self.indexFromItem(item).row())
 
     def renameItem(self):
-        currentItem: TreeWidgetItem = QObject.sender(self).data()
+        currentIndex: QModelIndex = QObject.sender(self).data()
+        currentItem: TreeItem = self.model().itemFromIndex(currentIndex)
         currentItem.renameItem()
     
     def editItem(self):
-        currentItem: TreeWidgetItem = QObject.sender(self).data()
+        currentIndex: QModelIndex = QObject.sender(self).data()
+        currentItem: TreeItem = self.model().itemFromIndex(currentIndex)
         if currentItem.isLpyResource():
-            self.openPersistentEditor(currentItem) # this calls the createEditor in the delegate that has been registered.
+            self.openPersistentEditor(currentIndex) # this calls the createEditor in the delegate that has been registered.
         else:
             currentItem.renameItem()
 
 
 def main():
     qapp = QApplication([])
-    m = TreeWidget(None, None)
+    widget =  QWidget()
+    layout = QHBoxLayout(widget)
+
+    model: QStandardItemModel = QStandardItemModel( 0, 1, widget)
+    m = TreeView(None, None, model)
+    layout.addWidget(m)
+    widget.setLayout(layout)
     m.createExampleObjects()
-    m.show()
+    widget.show()
     qapp.exec_()
 
 if __name__ == '__main__':

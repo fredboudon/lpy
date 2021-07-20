@@ -138,6 +138,9 @@ class ListWidget(QListWidget):
         for treeItem in listOfTreeWidgetItems:
             item = ListWidgetItem(parent=self, pairedTreeWidgetItem=treeItem)
 
+    def dropEvent(self, event: QtGui.QDropEvent) -> None:
+        return super().dropEvent(event)
+
     ## ===== Context menu =====
     def myListWidgetContext(self,position):
 

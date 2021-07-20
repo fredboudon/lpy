@@ -26,7 +26,7 @@ import typing
 BASE_DIALOG_SIZE = QSize(300, 400)
 CONTENT_SPACING = 2
 
-class ObjectEditorDialog(QMainWindow):
+class ObjectEditorDialog(QDialog):
     """the class that will create dialog between the panel and the editor window"""
     valueChanged = pyqtSignal(object)
     thumbnailChanged = pyqtSignal(QPixmap)
@@ -68,9 +68,9 @@ class ObjectEditorDialog(QMainWindow):
         # OpenGL object
         # self.mainWidget.discretizer = Discretizer()
         # self.mainWidget.renderer = GLRenderer(self.mainWidget.discretizer)
-        self.setCentralWidget(self.mainWidget)
+        # self.setCentralWidget(self.mainWidget)
 
-        self.verticalLayout = QVBoxLayout(self.mainWidget)
+        self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setSpacing(CONTENT_SPACING)
         self.verticalLayout.setObjectName("verticalLayout")
 

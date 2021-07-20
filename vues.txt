@@ -1,0 +1,29 @@
+vue en liste:
+
+1. faire marcher le drag and drop.
+
+2. 
+
+clic sur un groupe -> affiche à droite la liste des noeuds dans ce groupe (ou rien s'il n'y a rien)
+  |--> dans ce cas, afficher aussi les groupes comme des dossiers
+  |--> dans la liste, double-cliquer sur un groupe --> rentrer dans le groupe (et en informer le Tree)
+  |--> dans la liste, double-cliquer sur une LpyResource --> ouvrir l'éditeur
+  |--> dans la liste, simple-cliquer sur une LpyResource --> ne rien faire
+  |--> dans la liste, simple-cliquer sur un groupe --> ne rien faire
+  
+clic sur un noeud terminal -> affiche à droite le plus d'informations à ce noeud (au moins une miniature, d'autres infos)
+Note : Christophe veut 1 résultat pour 1 action:
+- double-cliquer dans un item du Tree ==> renommer (toujours!)
+- double-cliquer dans un item de la liste ==> editer (toujours!)
+
+
+
+3. dump et load de JSON
+
+
+
+Finalement :
+peaufiner l'object panel avant de faire les connexions avec le reste de Lpy
+
+CI ?
+travis a changé sa politique

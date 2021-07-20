@@ -241,7 +241,7 @@ class ObjectPanelManager(QObject):
         return bn
 
 from .listWidget import ListWidget
-from .treewidget import TreeWidget
+from .treewidget import TreeView
 
 class LpyObjectPanelDock (QDockWidget):
     valueChanged = pyqtSignal(bool)
@@ -261,8 +261,8 @@ class LpyObjectPanelDock (QDockWidget):
         
         self.objectpanel = QScrollArea(self.dockWidgetContents)
         self.splitter: QSplitter = QSplitter(self)
-        self.treeView = TreeWidget(self, panelmanager)
-        self.listView = ListWidget(self, panelmanager, self.treeView)
+        self.treeView = TreeView(self, panelmanager)
+        # self.listView = ListWidget(self, panelmanager, self.treeView)
 
         self.splitter.dock = self
 
@@ -284,7 +284,7 @@ class LpyObjectPanelDock (QDockWidget):
         self.treeView.AutomaticUpdate.connect(self.__transmit_autoupdate)
         # self.treeView.itemSelectionChanged.connect(self.endNameEditing)
         self.treeView.renameRequest.connect(self.displayName)
-        self.treeView.activeGroupChanged.connect(self.listView.populateFromTreeWidgetItems)
+        self.treeView.updateList.connect(self.listView.populateFromTreeWidgetItems)
 
         self.objectNameEdit.editingFinished.connect(self.updateName)
         self.dockNameEdition = False
