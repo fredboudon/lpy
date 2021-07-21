@@ -1,4 +1,5 @@
 from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QStandardItemModel
 from PyQt5.QtWidgets import QDialog, QSplitter, QTreeWidget
 from openalea.plantgl.all import *
 from openalea.plantgl.gui import qt
@@ -18,15 +19,13 @@ from openalea.plantgl.gui.qt.QtWidgets import QAbstractItemView, QAction, QAppli
 
 from .objectpanelcommon import TriggerParamFunc, retrieveidinname, retrievemaxidname, retrievebasename
 
-from .listWidgetItem import ListWidgetItem
-from .listWidgetItem import ItemDelegate
-from .treewidget import TreeWidget
-from .treewidget import TreeWidgetItem
+from .treeitem import TreeItem
+
 
 GRID_SIZE_PX = 96
 
 
-class ListWidget(QListWidget):
+class ListView(QListView):
 
     valueChanged = pyqtSignal(int)
     itemSelectionChanged = pyqtSignal(int) # /!\ "selectionChanged" is already exists! Don't override already existing names!
@@ -37,12 +36,11 @@ class ListWidget(QListWidget):
     plugins: dict[AbstractObjectManager] = {}
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
     isActive: bool = True
-    pairedTreeWidget: TreeWidget = None
 
-    def __init__(self, parent: QWidget = None, panelmanager: object = None, pairedTreeWidget: TreeWidget = None) -> None:
+    def __init__(self, parent: QWidget = None, panelmanager: object = None, model: QStandardItemModel = None) -> None:
         super().__init__(parent=parent)
         self.panelManager = panelmanager
-        self.pairedTreeWidget = pairedTreeWidget
+        self.setModel(model)
 
         palette = QtGui.QPalette()
         palette.setColor(QtGui.QPalette.Background, Qt.black)
@@ -60,17 +58,19 @@ class ListWidget(QListWidget):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self.setFlow(QListView.LeftToRight)
+        self.setFlow(QListView.TopToBottom)
 
         self.setResizeMode(QListView.Adjust)
         
-        self.delegate = ItemDelegate(self)
-        self.setItemDelegate(self.delegate)
+        # self.delegate = ItemDelegate(self)
+        # self.setItemDelegate(self.delegate)
+
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.setDragDropMode(QAbstractItemView.InternalMove)
+
         ## You should not set this for macOS 
         ## and only use setDragDropMode(QAbstractItemView.InternalMove)
-        # self.setDefaultDropAction(Qt.MoveAction) 
+        self.setDefaultDropAction(Qt.MoveAction) 
         # self.setMovement(QListView.Snap)
 
         self.setGridSize(QSize(GRID_SIZE_PX, GRID_SIZE_PX))
@@ -79,67 +79,10 @@ class ListWidget(QListWidget):
 
         self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())        
         
-        ## populate list from active tree
-        self.populateFromTreeWidgetItems()
-
         ## add custom context menu.
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.myListWidgetContext)
 
-    def createObject(self, manager, subtype = None, name="Item", lpyResource=None):
-        """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
-        # creating an Item with this Widget as parent automatically adds it in the list.
-        item = ListWidgetItem(parent=self, manager=manager, subtype=subtype, lpyResource=lpyResource)
-        item.setName(name)
-        ## Custom widget is disabled at the moment.
-        # self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
-
-    def getObjects(self):
-        items = []
-        for x in range(self.count() - 1):
-            items.append(self.item(x))
-        objects = list(map(lambda i: (i.getManager(), i.getItem()), items))
-        return objects
-    
-    def getObjectsCopy(self):
-        from copy import deepcopy
-        return [(m,deepcopy(o)) for m,o in self.getObjects()]
-    
-    def setObjects(self, objectList):
-        self.clear()
-        self.appendObjects(objectList)
-
-    def appendObjects(self, objectList):
-        for i in objectList:
-            self.appendObject(i)
-
-    def appendObject(self, object: tuple[AbstractObjectManager, object]):
-        manager, item = object
-        item = ListWidgetItem(parent=self, manager=manager, lpyResource = item)
-        item.setName(f"Item Name")
-        # self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
-        self.valueChanged.emit(self.count() - 1) #emitting the position of the item
-
-    # def resizeEvent(self, e: QtGui.QResizeEvent) -> None:
-    #     if e.size().width() > e.size().height() and self.flow() == QListView.TopToBottom:
-    #         self.setFlow(QListView.LeftToRight)
-    #         # for i in range(0, self.count()):
-    #         #     self.item(i).setLeftToRight()
-        
-    #     if e.size().width() < e.size().height() and self.flow() == QListView.LeftToRight:
-    #         self.setFlow(QListView.TopToBottom)
-    #         # for i in range(0, self.count()):
-    #         #     self.item(i).setTopToBottom()
-    #     return super().resizeEvent(e)
-
-    def populateFromTreeWidgetItems(self):
-        self.clear()
-        listOfTreeWidgetItems: list[TreeWidgetItem] = self.pairedTreeWidget.getItemsFromActiveGroup(withGroups=True)
-        for treeItem in listOfTreeWidgetItems:
-            item = ListWidgetItem(parent=self, pairedTreeWidgetItem=treeItem)
-
-    def dropEvent(self, event: QtGui.QDropEvent) -> None:
-        return super().dropEvent(event)
 
     ## ===== Context menu =====
     def myListWidgetContext(self,position):
@@ -186,9 +129,9 @@ class ListWidget(QListWidget):
                 self.takeItem(self.row(item))
 
     def renameItem(self):
-        currentItem: ListWidgetItem = self.item(self.currentRow())
+        currentItem: TreeItem = self.item(self.currentRow())
         currentItem.renameItem()
     
     def editItem(self):
-        currentItem: ListWidgetItem = self.item(self.currentRow())
+        currentItem: TreeItem = self.item(self.currentRow())
         self.openPersistentEditor(currentItem) # this calls the createEditor in the delegate that has been registered.

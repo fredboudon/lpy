@@ -25,7 +25,8 @@ class TreeView(QTreeView):
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
     isActive: bool = True
     activeGroup = None # can be TreeWidget (if top level) or TreeItem (if group)
-
+    selectedIndexChanged: pyqtSignal = pyqtSignal(QModelIndex)
+    
     lpyResourceStore: dict[object] = {}
 
     def __init__(self, parent: QWidget = None, panelmanager: object = None, model: QStandardItemModel = None) -> None:
@@ -64,7 +65,7 @@ class TreeView(QTreeView):
         
         self.setModel(model)
 
-    def createLpyResource(self, manager, subtype=None, parent=None) -> TreeItem:
+    def createLpyResource(self, manager, subtype=None, parent: QStandardItem = None) -> TreeItem:
         # creating an Item with this Widget as parent automatically adds it in the list.
         item = TreeItem(parent=parent, manager=manager, subtype=subtype, store=self.lpyResourceStore)
         
@@ -75,7 +76,7 @@ class TreeView(QTreeView):
         parent.appendRow(item)
 
         # if isinstance(parent, TreeItem):
-        #     parent.setExpanded(True)
+        self.setExpanded(parent.index(), True)
 
         return item
 
@@ -205,6 +206,14 @@ class TreeView(QTreeView):
         # self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
         self.valueChanged.emit(self.count() - 1) #emitting the position of the item
     """
+    def selectionChanged(self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection) -> None:
+        res =  super().selectionChanged(selected, deselected)
+        selected = self.selectedIndexes()
+        if selected == []:
+            model = self.model()
+            selected = [model.index(-1, -1)] #~that's the root baby
+        self.selectedIndexChanged.emit(selected[0])
+        return res
 
     ## ===== Context menu =====
     def contextMenuRequest(self,position):

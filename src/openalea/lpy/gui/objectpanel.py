@@ -1,3 +1,4 @@
+from PyQt5.QtGui import QStandardItemModel
 from PyQt5.QtWidgets import QDialog, QSplitter, QTreeWidget
 from openalea.plantgl.all import *
 from openalea.plantgl.gui import qt
@@ -240,12 +241,13 @@ class ObjectPanelManager(QObject):
             return bn+' '+str(mid+1)
         return bn
 
-from .listWidget import ListWidget
-from .treewidget import TreeView
+from .treeview import TreeView
+from .listview import ListView
 
 class LpyObjectPanelDock (QDockWidget):
     valueChanged = pyqtSignal(bool)
     AutomaticUpdate = pyqtSignal()
+    model: QStandardItemModel = None
 
     def __init__(self,parent,name,panelmanager = None):    
         QDockWidget.__init__(self,parent)
@@ -261,8 +263,12 @@ class LpyObjectPanelDock (QDockWidget):
         
         self.objectpanel = QScrollArea(self.dockWidgetContents)
         self.splitter: QSplitter = QSplitter(self)
-        self.treeView = TreeView(self, panelmanager)
-        # self.listView = ListWidget(self, panelmanager, self.treeView)
+
+        self.model: QStandardItemModel = QStandardItemModel( 0, 1, self)
+        self.treeView = TreeView(self, panelmanager, self.model)
+        self.listView = ListView(self, panelmanager, self.model)
+        self.treeView.selectedIndexChanged.connect(self.listView.setRootIndex)
+
 
         self.splitter.dock = self
 
@@ -284,7 +290,6 @@ class LpyObjectPanelDock (QDockWidget):
         self.treeView.AutomaticUpdate.connect(self.__transmit_autoupdate)
         # self.treeView.itemSelectionChanged.connect(self.endNameEditing)
         self.treeView.renameRequest.connect(self.displayName)
-        self.treeView.updateList.connect(self.listView.populateFromTreeWidgetItems)
 
         self.objectNameEdit.editingFinished.connect(self.updateName)
         self.dockNameEdition = False

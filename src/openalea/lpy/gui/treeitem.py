@@ -111,7 +111,7 @@ class TreeItemDelegate(QtWidgets.QStyledItemDelegate):
         lpyresource = self.lpyResourceStore[lpyresourceuuid][STORE_LPYRESOURCE_STR]
 
         name = index.data(Qt.DisplayRole)
-        dialog = ObjectEditorDialog(self.parentWidget, Qt.Dialog) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
+        dialog = ObjectEditorDialog(self.parentWidget) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
         dialog.setupUi(manager) # the dialog creates the editor and stores it
         manager.setObjectToEditor(dialog.getEditor(), lpyresource)
         dialog.setWindowTitle(f"{manager.typename} Editor - {name}")

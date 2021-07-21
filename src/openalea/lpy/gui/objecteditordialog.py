@@ -22,6 +22,7 @@ from openalea.plantgl.gui.qt.QtOpenGL import QGLWidget
 
 
 import typing
+import sys
 
 BASE_DIALOG_SIZE = QSize(300, 400)
 CONTENT_SPACING = 2
@@ -41,7 +42,12 @@ class ObjectEditorDialog(QDialog):
     _menubar: QMenuBar = None
     objectView: QGLWidget = None
 
-    def __init__(self, parent: typing.Optional[QWidget], flags: typing.Union[QtCore.Qt.WindowFlags, QtCore.Qt.WindowType]) -> None:
+    def __init__(self, parent: typing.Optional[QWidget]) -> None:
+        flags = 0
+        if sys.platform.startswith("darwin"):
+            flags = flags | Qt.Dialog
+        else:
+            flags = flags | Qt.Window
         super().__init__(parent=parent, flags=flags)
         """during the init of the dialog we have to know the editor we want to open, the typ variable will allow us to know that"""
 
