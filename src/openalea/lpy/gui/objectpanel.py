@@ -7,6 +7,8 @@ from OpenGL.GLU import *
 import sys, traceback, os
 from math import sin, pi
 
+from openalea.lpy.gui.treecontroller import TreeController
+
 from .abstractobjectmanager import AbstractObjectManager
 
 from .objectmanagers import get_managers
@@ -265,8 +267,11 @@ class LpyObjectPanelDock (QDockWidget):
         self.splitter: QSplitter = QSplitter(self)
 
         self.model: QStandardItemModel = QStandardItemModel( 0, 1, self)
-        self.treeView = TreeView(self, panelmanager, self.model)
-        self.listView = ListView(self, panelmanager, self.model)
+        self.store: dict[object] = {}
+        self.controller = TreeController(model=self.model, store=self.store)
+        self.treeView = TreeView(self, panelmanager, self.controller)
+        self.listView = ListView(self, panelmanager, self.controller)
+        
         self.treeView.selectedIndexChanged.connect(self.listView.setRootIndex)
 
 
@@ -402,7 +407,7 @@ def main():
     import pprint
     qapp = QApplication([])
     m = LpyObjectPanelDock(None,'TestPanel')
-    m.treeView.createExampleObjects()
+    m.controller.createExampleObjects()
     # pp = pprint.PrettyPrinter(indent=2)
     # pp.pprint(m.objectpanel.getObjects())
     m.show()
