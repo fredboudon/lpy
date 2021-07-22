@@ -6,7 +6,7 @@ except:
 
 import typing
 from PyQt5 import QtCore
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QModelIndex, QSize
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtOpenGL import QGLWidget
 from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QOpenGLWidget, QWidget
@@ -42,14 +42,17 @@ class ObjectEditorDialog(QDialog):
     _menubar: QMenuBar = None
     objectView: QGLWidget = None
 
+    modelIndex: QModelIndex = None
+
     def __init__(self, parent: typing.Optional[QWidget]) -> None:
         flags = 0
-        if sys.platform.startswith("darwin"):
-            flags = flags | Qt.Dialog
-        else:
-            flags = flags | Qt.Window
+        flags = flags | Qt.Window
         super().__init__(parent=parent, flags=flags)
+        self.setModal(False)
         """during the init of the dialog we have to know the editor we want to open, the typ variable will allow us to know that"""
+
+    def setModelIndex(self, index: QModelIndex):
+        self.modelIndex = index
 
     def getEditor(self):
         return self.objectView
@@ -159,8 +162,8 @@ class ObjectEditorDialog(QDialog):
     def __apply(self):
         item = self.manager.retrieveObjectFromEditor(self.objectView)
         print(item)
-        self.valueChanged.emit(item)
         self.__updateThumbail()
+        self.valueChanged.emit(self)
         self.isValueChanged = False
         
     def __ok(self):

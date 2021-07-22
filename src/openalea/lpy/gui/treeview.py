@@ -7,12 +7,19 @@ from openalea.plantgl.gui.qt.QtGui import *
 from openalea.plantgl.gui.qt.QtWidgets import *
 
 from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
+
+from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
+
+from openalea.lpy.gui.renamedialog import RenameDialog
+
+from openalea.lpy.gui.treecontroller import TreeController
 from .objectmanagers import get_managers
 import pprint
 
 from .objectpanelcommon import *
 
-from .treeitem import TreeItem, TreeItemDelegate
+from .treeitem import TreeItem, TreeItemDelegate, QT_USERROLE_LPYRESOURCEUUID, STORE_LPYRESOURCE_STR, STORE_MANAGER_STR, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH
+
 
 class TreeView(QTreeView):
 
@@ -27,9 +34,9 @@ class TreeView(QTreeView):
     activeGroup = None # can be TreeWidget (if top level) or TreeItem (if group)
     selectedIndexChanged: pyqtSignal = pyqtSignal(QModelIndex)
     
-    lpyResourceStore: dict[object] = {}
+    controller: TreeController = None
 
-    def __init__(self, parent: QWidget = None, panelmanager: object = None, model: QStandardItemModel = None) -> None:
+    def __init__(self, parent: QWidget = None, panelmanager: object = None, model: QStandardItemModel = None, controller: TreeController = None) -> None:
         super().__init__(parent=parent)
         self.panelManager = panelmanager
 
@@ -47,10 +54,8 @@ class TreeView(QTreeView):
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        self.delegate = TreeItemDelegate(self)
-        self.delegate.setLpyResourceStore(self.lpyResourceStore)
-        # self.delegate.setParentWidget(self)
-        self.setItemDelegate(self.delegate)
+        self.controller = controller
+        self.setItemDelegate(controller.delegate)
 
         self.setSelectionMode(QAbstractItemView.ExtendedSelection) 
         self.setEditTriggers(self.editTriggers() | QAbstractItemView.DoubleClicked)
@@ -64,21 +69,7 @@ class TreeView(QTreeView):
         # self.selectionChanged.connect(self.setActiveGroup) #FIXME: connect selection change probably by reimplementation
         
         self.setModel(model)
-
-    def createLpyResource(self, manager, subtype=None, parent: QStandardItem = None) -> TreeItem:
-        # creating an Item with this Widget as parent automatically adds it in the list.
-        item = TreeItem(parent=parent, manager=manager, subtype=subtype, store=self.lpyResourceStore)
         
-        model: QStandardItemModel = self.model()
-        if parent == None:
-            parent = model.invisibleRootItem()
-        
-        parent.appendRow(item)
-
-        # if isinstance(parent, TreeItem):
-        self.setExpanded(parent.index(), True)
-
-        return item
 
     def createExampleObjects(self):
         for mname, manager in self.plugins:
@@ -87,18 +78,18 @@ class TreeView(QTreeView):
                 mname = subtypes[0]
                 subtypes = None
             if subtypes is None:
-                self.createLpyResource(manager)
+                self.controller.createLpyResource(manager=manager)
             else:
                 for subtype in subtypes: 
-                    self.createLpyResource(manager, subtype)
+                    self.controller.createLpyResource(manager=manager, subtype=subtype)
 
-        topItem = self.createLpyResource(manager=None, subtype=None, parent=None)
+        topItem = self.controller.createLpyResource(manager=None, subtype=None, parent=None)
         model: QStandardItemModel = self.model()
         lastitem: TreeItem = topItem
 
         for i in range(5):
             ## parent can be either None (root item) or a QStandardItem. But it can't be the QTreeView (it could have been the QListWidget because widgets interact differently)
-            newItem = self.createLpyResource(manager=None, subtype=None, parent=lastitem)
+            newItem = self.controller.createLpyResource(manager=None, subtype=None, parent=lastitem)
             lastitem = newItem
             
 
@@ -114,7 +105,7 @@ class TreeView(QTreeView):
             item = self.model().itemFromIndex(index)
 
         
-        if index and item.isLpyResource():
+        if index and self.controller.isLpyResource(index):
             self.activeGroup = item.parent() # if you're on top level, parent() = None.
         else:
             self.activeGroup = item
@@ -123,34 +114,20 @@ class TreeView(QTreeView):
         # pprint.pprint(self.getObjects()) #FIXME: fix getObject()
         self.updateList.emit()
     
-    def isLpyResource(self) -> bool:
-        return False
-
-    def getName(self) -> str:
-        return self.__str__
-    
     def getItemsFromActiveGroup(self, withGroups: bool = False) -> list[TreeItem]:
         res: list[TreeItem] = []
         if self.activeGroup != None:
             for i in range(self.activeGroup.childCount()):
                 item: TreeItem = self.activeGroup.child(i)
-                if item.isLpyResource() or withGroups:
+                if self.controller.isLpyResource(item.index()) or withGroups:
                     res.append(item)
         else:
             topLevelItemCount = self.model().rowCount()
             for i in range(topLevelItemCount):
                 item: TreeItem = self.topLevelItem(i)
-                if item.isLpyResource() or withGroups:
+                if self.controller.isLpyResource(item.index()) or withGroups:
                     res.append(item)
         return res
-        
-    def createLpyResourceFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
-        """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
-        data: dict = QObject.sender(self).data()
-        manager = data["manager"]
-        subtype = data["subtype"]
-        parent = data["parent"]
-        self.createLpyResource(manager, subtype, parent)
     
     def getChildrenTreeDemo(self):
         data = QObject.sender(self).data()
@@ -160,7 +137,7 @@ class TreeView(QTreeView):
         
     def getChildrenTree(self, startItem: TreeItem) -> dict:
         def getItemcontent(startItem: TreeItem):
-            if startItem.isLpyResource():
+            if self.controller.isLpyResource(startItem.index()):
                 return startItem.getManagerLpyResourceTuple()
             elif startItem.childCount() == 0:
                 return {}
@@ -209,29 +186,47 @@ class TreeView(QTreeView):
     def selectionChanged(self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection) -> None:
         res =  super().selectionChanged(selected, deselected)
         selected = self.selectedIndexes()
+        model = self.model()
         if selected == []:
-            model = self.model()
             selected = [model.index(-1, -1)] #~that's the root baby
+        elif self.controller.isLpyResource(selected[0]):
+            parent = model.itemFromIndex(selected[0]).parent()
+            if parent == None:
+                selected = [model.index(-1, -1)]
+            else:
+                selected = [parent.index()]
         self.selectedIndexChanged.emit(selected[0])
         return res
+
+    def createLpyResourceFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
+        """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
+        data: dict = QObject.sender(self).data()
+        manager = data["manager"]
+        subtype = data["subtype"]
+        parent = data["parent"]
+        item = self.controller.createLpyResource(manager, subtype, parent)
+        if item.parent() != None:
+            self.setExpanded(item.parent().index(), True)    
 
     ## ===== Context menu =====
     def contextMenuRequest(self,position):
 
         contextmenu = QMenu(self)
         
-        parent = self
+        parent = None
+        parentIndex = None # self.model().indexFromItem(parent)
         newItemString = "New Item"
         newGroupString = "New Group"
         clickedIndex: QModelIndex = self.indexAt(position)
         clickedItem: TreeItem = self.model().itemFromIndex(clickedIndex)
 
         if clickedItem != None:
-            parent = clickedIndex
+            parentIndex = clickedIndex
+            parent = clickedItem
             newItemString = "New Child Item"
             newGroupString = "New Child Group"
 
-        if clickedItem == None or (not clickedItem.isLpyResource()):
+        if clickedItem == None or (not self.controller.isLpyResource(clickedIndex)):
             newGroupAction = QAction(newGroupString, self)
             newGroupAction.triggered.connect(self.createLpyResourceFromMenu)
             actionGroupData = {"manager": None, "subtype": None, "parent": parent}
@@ -264,21 +259,22 @@ class TreeView(QTreeView):
             contextmenu.addSeparator()
 
         menuActions: dict = {}
-        if clickedIndex: # if there's an item under your mouse, create the menu for it
+        if clickedItem != None: # if there's an item under your mouse, create the menu for it
             f = QFont()
             f.setBold(True)
-            menuActions["Edit"] = QAction('Edit',self)
-            menuActions["Edit"].setFont(f)
-            menuActions["Edit"].setData(clickedIndex)
-            menuActions["Edit"].triggered.connect(self.editItem)
+            if self.controller.isLpyResource(clickedIndex):
+                menuActions["Edit"] = QAction('Edit',self)
+                menuActions["Edit"].setFont(f)
+                menuActions["Edit"].setData(clickedIndex)
+                menuActions["Edit"].triggered.connect(self.controller.editItem)
 
             menuActions["Delete"] = QAction('Delete',self)
-            # no need for data since we're relying on self.selectedItems to delete multiple items
-            menuActions["Delete"].triggered.connect(self.deleteItem)
+            menuActions["Delete"].setData(self.selectedIndexes())
+            menuActions["Delete"].triggered.connect(self.controller.deleteItem)
 
             menuActions["Rename"] = QAction("Rename", self)
             menuActions["Rename"].setData(clickedIndex)
-            menuActions["Rename"].triggered.connect(self.renameItem)
+            menuActions["Rename"].triggered.connect(self.controller.renameItem)
 
             menuActions["Get item tree from here"] = QAction("Get item tree from here", self)
             menuActions["Get item tree from here"].setData(clickedIndex)
@@ -292,39 +288,18 @@ class TreeView(QTreeView):
 
         contextmenu.exec_(self.mapToGlobal(position))
 
-    def deleteItem(self):
-
-        if (len(self.selectedIndexes()) > 0):
-            for index in self.selectedIndexes():
-                model: QStandardItemModel = self.model()
-                model.beginRemoveRows()
-                model.removeRow()
-                if item.parent() != None:
-                    item.parent().removeChild(item)
-                else:        
-                    item: TreeItem = self.takeTopLevelItem(self.indexFromItem(item).row())
-
-    def renameItem(self):
-        currentIndex: QModelIndex = QObject.sender(self).data()
-        currentItem: TreeItem = self.model().itemFromIndex(currentIndex)
-        currentItem.renameItem()
-    
-    def editItem(self):
-        currentIndex: QModelIndex = QObject.sender(self).data()
-        currentItem: TreeItem = self.model().itemFromIndex(currentIndex)
-        if currentItem.isLpyResource():
-            self.openPersistentEditor(currentIndex) # this calls the createEditor in the delegate that has been registered.
-        else:
-            currentItem.renameItem()
-
 
 def main():
     qapp = QApplication([])
     widget =  QWidget()
     layout = QHBoxLayout(widget)
 
+    # create new store, model, controller
+    store: dict[object] = {}
     model: QStandardItemModel = QStandardItemModel( 0, 1, widget)
-    m = TreeView(None, None, model)
+    controller = TreeController(model=model, store=store)
+    m = TreeView(None, None, model, controller)
+
     layout.addWidget(m)
     widget.setLayout(layout)
     m.createExampleObjects()
