@@ -8,7 +8,7 @@ from OpenGL.GLU import *
 import sys, traceback, os
 from math import sin, pi
 
-from openalea.lpy.gui.treecontroller import TreeController
+from openalea.lpy.gui.treecontroller import TreeController, GRID_HEIGHT_PX, GRID_WIDTH_PX
 
 from .abstractobjectmanager import AbstractObjectManager
 
@@ -19,10 +19,7 @@ from openalea.plantgl.gui.qt.QtGui import QFont, QFontMetrics, QImageWriter, QCo
 from openalea.plantgl.gui.qt.QtWidgets import QAbstractItemView, QAction, QApplication, QDockWidget, QFileDialog, QLineEdit, QMenu, QMessageBox, QScrollArea, QVBoxLayout, QWidget, QLabel, QListView, QListWidget, QListWidgetItem, QSizePolicy
 
 
-from .objectpanelcommon import TriggerParamFunc, retrieveidinname, retrievemaxidname, retrievebasename
 
-
-GRID_SIZE_PX = 96
 
 
 class ListView(QListView):
@@ -41,8 +38,11 @@ class ListView(QListView):
         super().__init__(parent=parent)
         self.panelManager = panelmanager
         self.controller = controller
-        self.setModel(self.controller.model)
-        self.setItemDelegate(self.controller.delegate)
+        self.setItemDelegate(controller.listDelegate)
+        self.setModel(controller.model)
+
+        self.setModel(controller.model)
+
 
         palette = QtGui.QPalette()
         palette.setColor(QtGui.QPalette.Background, Qt.black)
@@ -52,20 +52,17 @@ class ListView(QListView):
         self.setMinimumSize(96, 96)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        ## Drag and drop are disabled, they make the items disappear on macOS (wtf)
-        self.setWrapping(True)
         # self.setAcceptDrops(True)
         self.setDragEnabled(True)
 
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+
         self.setFlow(QListView.TopToBottom)
+        self.setWrapping(True)
 
         self.setResizeMode(QListView.Adjust)
-        
-        # self.delegate = ItemDelegate(self)
-        # self.setItemDelegate(self.delegate)
 
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.setDragDropMode(QAbstractItemView.InternalMove)
@@ -75,7 +72,7 @@ class ListView(QListView):
         self.setDefaultDropAction(Qt.MoveAction) 
         # self.setMovement(QListView.Snap)
 
-        self.setGridSize(QSize(GRID_SIZE_PX, GRID_SIZE_PX))
+        self.setGridSize(QSize(GRID_WIDTH_PX, GRID_HEIGHT_PX))
 
         self.setEditTriggers(self.editTriggers() | QAbstractItemView.DoubleClicked)
 
@@ -85,13 +82,13 @@ class ListView(QListView):
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.contextMenuRequest)
 
-    def createLpyResourceFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
+    def createItemFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
         """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
         data: dict = QObject.sender(self).data()
         manager = data["manager"]
         subtype = data["subtype"]
         parent = data["parent"]
-        item = self.controller.createLpyResource(manager, subtype, parent)
+        item = self.controller.createItem(parent, manager, subtype)
         if item.parent() != None:
             self.setRootIndex(item.parent().index())
 
@@ -115,7 +112,7 @@ class ListView(QListView):
 
         if clickedItem == None or (not self.controller.isLpyResource(clickedIndex)):
             newGroupAction = QAction(newGroupString, self)
-            newGroupAction.triggered.connect(self.createLpyResourceFromMenu)
+            newGroupAction.triggered.connect(self.createItemFromMenu)
             actionGroupData = {"manager": None, "subtype": None, "parent": parent}
             newGroupAction.setData(actionGroupData)
             contextmenu.addAction(newGroupAction)
@@ -129,7 +126,7 @@ class ListView(QListView):
                     subtypes = None
                 if subtypes is None:
                     createAction = QAction(mname, self)
-                    createAction.triggered.connect(self.createLpyResourceFromMenu)
+                    createAction.triggered.connect(self.createItemFromMenu)
                     createActionData = {"manager": manager, "subtype": None, "parent": parent}
                     createAction.setData(createActionData)
                     self.newItemMenu.addAction(createAction)
@@ -137,7 +134,7 @@ class ListView(QListView):
                     subtypeMenu = self.newItemMenu.addMenu(mname)
                     for subtype in subtypes: 
                         createAction = QAction(subtype, self)
-                        createAction.triggered.connect(self.createLpyResourceFromMenu)
+                        createAction.triggered.connect(self.createItemFromMenu)
                         createActionDataWithSubtype = {"manager": manager, "subtype": subtype, "parent": parent}
                         createAction.setData(createActionDataWithSubtype)
                         subtypeMenu.addAction(createAction)
@@ -154,6 +151,10 @@ class ListView(QListView):
                 menuActions["Edit"].setFont(f)
                 menuActions["Edit"].setData(clickedIndex)
                 menuActions["Edit"].triggered.connect(self.controller.editItem)
+
+            menuActions["Clone"] = QAction("Clone", self)
+            menuActions["Clone"].setData(clickedIndex)
+            menuActions["Clone"].triggered.connect(self.controller.cloneItem) 
 
             menuActions["Delete"] = QAction('Delete',self)
             menuActions["Delete"].setData(self.selectedIndexes())

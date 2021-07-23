@@ -53,38 +53,19 @@ class TreeView(QTreeView):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         self.controller = controller
-        self.setItemDelegate(controller.delegate)
-        self.setModel(self.controller.model)
+        self.setItemDelegate(controller.treeDelegate)
+        self.setModel(controller.model)
+        self.setExpandsOnDoubleClick(True) # FIXME: doesn't work if we set a delegate...
 
         self.setSelectionMode(QAbstractItemView.ExtendedSelection) 
         self.setEditTriggers(self.editTriggers() | QAbstractItemView.DoubleClicked)
 
         self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())        
-        self.setActiveGroup()
 
         ## add custom context menu.
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.contextMenuRequest)
 
-    def setActiveGroup(self):
-        index: QModelIndex = None
-        item = None
-        if self.selectedIndexes() == []:
-            index = None
-        else:
-            index = self.selectedIndexes()[len(self.selectedIndexes()) - 1]
-            item = self.model().itemFromIndex(index)
-
-        
-        if index and self.controller.isLpyResource(index):
-            self.activeGroup = item.parent() # if you're on top level, parent() = None.
-        else:
-            self.activeGroup = item
-        print(f"current active group:\t{self.activeGroup}")
-        print(f"Visible LpyResources: ")
-        # pprint.pprint(self.getObjects()) #FIXME: fix getObject()
-        self.updateList.emit()
-    
     def getItemsFromActiveGroup(self, withGroups: bool = False) -> list[QStandardItem]:
         res: list[QStandardItem] = []
         if self.activeGroup != None:
@@ -169,13 +150,13 @@ class TreeView(QTreeView):
         self.selectedIndexChanged.emit(selected[0])
         return res
 
-    def createLpyResourceFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
+    def createItemFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()
         """ adding a new object to the objectListDisplay, a new object will be created following a default rule defined in its manager"""
         data: dict = QObject.sender(self).data()
-        manager = data["manager"]
-        subtype = data["subtype"]
-        parent = data["parent"]
-        item = self.controller.createLpyResource(manager, subtype, parent)
+        manager: AbstractObjectManager = data["manager"]
+        subtype: str = data["subtype"]
+        parent: QStandardItem = data["parent"]
+        item = self.controller.createItem(parent, manager, subtype)
         if item.parent() != None:
             self.setExpanded(item.parent().index(), True)    
 
@@ -184,7 +165,7 @@ class TreeView(QTreeView):
 
         contextmenu = QMenu(self)
         
-        parent = None
+        parent: QStandardItem = None
         parentIndex = None # self.model().indexFromItem(parent)
         newItemString = "New Item"
         newGroupString = "New Group"
@@ -199,7 +180,7 @@ class TreeView(QTreeView):
 
         if clickedItem == None or (not self.controller.isLpyResource(clickedIndex)):
             newGroupAction = QAction(newGroupString, self)
-            newGroupAction.triggered.connect(self.createLpyResourceFromMenu)
+            newGroupAction.triggered.connect(self.createItemFromMenu)
             actionGroupData = {"manager": None, "subtype": None, "parent": parent}
             newGroupAction.setData(actionGroupData)
             contextmenu.addAction(newGroupAction)
@@ -213,7 +194,7 @@ class TreeView(QTreeView):
                     subtypes = None
                 if subtypes is None:
                     createAction = QAction(mname, self)
-                    createAction.triggered.connect(self.createLpyResourceFromMenu)
+                    createAction.triggered.connect(self.createItemFromMenu)
                     createActionData = {"manager": manager, "subtype": None, "parent": parent}
                     createAction.setData(createActionData)
                     self.newItemMenu.addAction(createAction)
@@ -221,7 +202,7 @@ class TreeView(QTreeView):
                     subtypeMenu = self.newItemMenu.addMenu(mname)
                     for subtype in subtypes: 
                         createAction = QAction(subtype, self)
-                        createAction.triggered.connect(self.createLpyResourceFromMenu)
+                        createAction.triggered.connect(self.createItemFromMenu)
                         createActionDataWithSubtype = {"manager": manager, "subtype": subtype, "parent": parent}
                         createAction.setData(createActionDataWithSubtype)
                         subtypeMenu.addAction(createAction)
@@ -239,6 +220,10 @@ class TreeView(QTreeView):
                 menuActions["Edit"].setData(clickedIndex)
                 menuActions["Edit"].triggered.connect(self.controller.editItem)
 
+            menuActions["Clone"] = QAction("Clone", self)
+            menuActions["Clone"].setData(clickedIndex)
+            menuActions["Clone"].triggered.connect(self.controller.cloneItem) 
+
             menuActions["Delete"] = QAction('Delete',self)
             menuActions["Delete"].setData(self.selectedIndexes())
             menuActions["Delete"].triggered.connect(self.controller.deleteItem)
@@ -246,6 +231,8 @@ class TreeView(QTreeView):
             menuActions["Rename"] = QAction("Rename", self)
             menuActions["Rename"].setData(clickedIndex)
             menuActions["Rename"].triggered.connect(self.controller.renameItem)
+
+  
 
             menuActions["Get item tree from here"] = QAction("Get item tree from here", self)
             menuActions["Get item tree from here"].setData(clickedIndex)

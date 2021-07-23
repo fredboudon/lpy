@@ -1,9 +1,10 @@
 
 
 
-from PyQt5.QtCore import QModelIndex, QObject, QUuid, Qt, pyqtSignal
-from PyQt5.QtGui import QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import QDialog, QInputDialog, QStyleOptionViewItem, QStyledItemDelegate, QWidget
+from copy import deepcopy
+from PyQt5.QtCore import QMargins, QModelIndex, QObject, QRect, QSize, QUuid, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPainter, QPalette, QStandardItem, QStandardItemModel
+from PyQt5.QtWidgets import QDialog, QInputDialog, QStyle, QStyleOptionViewItem, QStyledItemDelegate, QWidget
 
 from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
 
@@ -23,7 +24,135 @@ STORE_LPYRESOURCE_STR = "lpyresource"
 THUMBNAIL_HEIGHT=48
 THUMBNAIL_WIDTH=48
 
-class EmptyDelegate(QStyledItemDelegate):
+GRID_WIDTH_PX = 192
+GRID_HEIGHT_PX = 36
+
+class ListDelegate(QStyledItemDelegate):
+    createEditorCalled: pyqtSignal = pyqtSignal(QModelIndex)
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QWidget:
+        # return super().createEditor(parent, option, index)
+        print("create Editor called")
+        self.createEditorCalled.emit(index)
+        return None
+
+    def timestampBox(self, f: QFont, index: QModelIndex ):
+        return QFontMetrics(f).boundingRect(index.data(QT_USERROLE_UUID).toString()).adjusted(0, 0, 1, 1)
+
+    def paint(self, painter: QPainter, option: 'QStyleOptionViewItem', index: QModelIndex) -> None:
+        return super().paint(painter, option, index)
+        
+        ## The following paint code only works for QListView with:
+        ##      self.setFlow(QListView.LeftToRight)
+        ##      self.setWrapping(False)
+        opt: QStyleOptionViewItem = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        palette: QPalette = QPalette(opt.palette)
+        rect: QRect = QRect(opt.rect)
+
+        iconSize: QSize = QSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
+        margins: QMargins = QMargins(0, 0, 0, 0)
+        spacingHorizontal: int = 0
+        spacingVertical: int  = 0
+
+        contentRect: QRect = QRect(rect.adjusted(margins.left(),
+                                                margins.top(),
+                                                -margins.right(),
+                                                -margins.bottom()))
+        lastIndex = (index.model().rowCount() - 1) == index.row()
+        hasIcon = not opt.icon.isNull()
+        bottomEdge = rect.bottom()
+        f: QFont = QFont(opt.font)
+        f.setPointSize(opt.font.pointSize())
+        painter.save()
+        painter.setClipping(True)
+        painter.setClipRect(rect)
+        painter.setFont(opt.font)
+
+        # // Draw background
+        colorRectFill: QColor = None
+        if opt.state & QStyle.State_Selected:
+            colorRectFill = palette.highlight().color()
+        else:
+            colorRectFill = palette.mid().color()
+        painter.fillRect(rect, colorRectFill)
+
+        # // Draw bottom line
+        lineColor: QColor = None
+        startLine: QRect = None
+        if lastIndex:
+            lineColor = palette.dark().color()
+            startLine =  rect.left()
+        else:
+            lineColor = palette.mid().color()
+            startLine = margins.left()
+        painter.setPen(lineColor)
+        painter.drawLine(startLine, bottomEdge, rect.right(), bottomEdge)
+
+        # // Draw message icon
+        if (hasIcon):
+            painter.drawPixmap(contentRect.left(), contentRect.top(),
+                                opt.icon.pixmap(QSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)))
+        # // Draw timestamp
+        f: QFont = QFont(opt.font)
+
+        f.setPointSizeF(opt.font.pointSize() * 0.8)
+
+        timestampBox = QFontMetrics(f).boundingRect(index.data(QT_USERROLE_UUID).toString()).adjusted(0, 0, 1, 1)
+
+        timeStampRect: QRect = QRect(timestampBox)
+        timeStampRect.setWidth(contentRect.width() - spacingHorizontal - iconSize.width())
+        timeStampRect.setHeight(int(float(contentRect.height()) / 2))
+        timeStampRect.moveTo(margins.left() + iconSize.width()
+                            + spacingHorizontal, contentRect.top())
+
+        painter.setFont(f)
+        painter.setPen(palette.text().color())
+        painter.drawText(timeStampRect, Qt.TextSingleLine | Qt.AlignLeft,
+                        index.data(QT_USERROLE_UUID).toString())
+
+        # // Draw message text
+        messageRect: QRect = QRect(opt.fontMetrics.boundingRect(opt.text).adjusted(0, 0, 1, 1))
+        # messageRect: QRect = QRect(0, 0, contentRect.width() - spacingHorizontal - iconSize.width(), (contentRect.height() - spacingVertical)/2)
+        messageRect.setWidth(contentRect.width() - spacingHorizontal - iconSize.width())
+        messageRect.setHeight(int(float(contentRect.height()) / 2))
+        messageRect.moveTo(timeStampRect.left(), timeStampRect.bottom()
+                        + spacingVertical)
+
+        painter.setFont(opt.font)
+        painter.setPen(palette.windowText().color())
+        
+        painter.drawText(messageRect, Qt.TextSingleLine | Qt.AlignLeft, opt.text)
+
+        painter.restore()
+        
+
+    def sizeHint(self, option: 'QStyleOptionViewItem', index: QModelIndex) -> QSize:
+        return super().sizeHint(option, index)
+
+        ## The following paint code only works for QListView with:
+        ##      self.setFlow(QListView.LeftToRight)
+        ##      self.setWrapping(False)
+
+        iconSize: QSize = QSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
+        margins: QMargins = QMargins(0, 0, 0, 0)
+        spacingHorizontal = 0
+        spacingVertical = 0
+
+        opt: QStyleOptionViewItem = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+
+        timestampBox = opt.fontMetrics.boundingRect(index.data(QT_USERROLE_UUID).toString()).adjusted(0, 0, 1, 1)
+        messageBox: QRect = QRect(opt.fontMetrics.boundingRect(opt.text).adjusted(0, 0, 1, 1))
+        textHeight: int = timestampBox.height() + spacingVertical + messageBox.height()
+        iconHeight: int = iconSize.height()
+        h: int = max(textHeight, iconHeight)
+
+        return QSize(opt.rect.width(), margins.top() + h
+                    + margins.bottom())
+        # """
+
+
+class TreeDelegate(QStyledItemDelegate):
     createEditorCalled: pyqtSignal = pyqtSignal(QModelIndex)
     def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QWidget:
         # return super().createEditor(parent, option, index)
@@ -36,14 +165,17 @@ class TreeController(QObject):
 
     model: QStandardItemModel = None
     store: dict = {}
-    delegate: EmptyDelegate = None
+    treeDelegate: TreeDelegate = None
+    listDelegate: ListDelegate = None
 
     def __init__(self, model: QStandardItemModel, store: dict[object]) -> None:
         super().__init__()
         self.model = model
         self.store = store
-        self.delegate: EmptyDelegate = EmptyDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
-        self.delegate.createEditorCalled.connect(self.editItem)
+        self.treeDelegate: TreeDelegate = TreeDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
+        self.treeDelegate.createEditorCalled.connect(self.editItem)
+        self.listDelegate: ListDelegate = ListDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
+        self.listDelegate.createEditorCalled.connect(self.editItem)
 
     def createExampleObjects(self):
         plugins : list[str, AbstractObjectManager] = list(get_managers().items())        
@@ -53,24 +185,24 @@ class TreeController(QObject):
                 mname = subtypes[0]
                 subtypes = None
             if subtypes is None:
-                self.createLpyResource(manager=manager)
+                self.createItem(manager=manager)
             else:
                 for subtype in subtypes: 
-                    self.createLpyResource(manager=manager, subtype=subtype)
+                    self.createItem(manager=manager, subtype=subtype)
 
-        topItem = self.createLpyResource(manager=None, subtype=None, parent=None)
+        topItem = self.createItem(parent=None, manager=None, subtype=None)
         lastitem: QStandardItem = topItem
         for i in range(5):
             ## parent can be either None (root item) or a QStandardItem. But it can't be the QTreeView (it could have been the QListWidget because widgets interact differently)
-            newItem = self.createLpyResource(manager=None, subtype=None, parent=lastitem)
+            newItem = self.createItem(parent=lastitem, manager=None, subtype=None)
             lastitem = newItem
 
-    def createItem(self, parent: QStandardItem, manager: AbstractObjectManager, subtype: str, sourceItem: object = None) -> QStandardItem:
+    def createItem(self, parent: QStandardItem = None, manager: AbstractObjectManager = None, subtype: str = None, sourceLpyResource: object = None, clonedItem: QStandardItem = None) -> QStandardItem:
         item: QStandardItem = QStandardItem(parent)
         uuid = QUuid.createUuid()
-        if sourceItem != None:
+        if sourceLpyResource != None:
             self.store[uuid] = {}
-            self.store[uuid][STORE_LPYRESOURCE_STR] = sourceItem
+            self.store[uuid][STORE_LPYRESOURCE_STR] = deepcopy(sourceLpyResource)
             self.store[uuid][STORE_MANAGER_STR] = manager   
         elif manager != None: # it's a new lpyresource
             self.store[uuid] = {}
@@ -86,29 +218,50 @@ class TreeController(QObject):
                         | Qt.ItemIsUserCheckable
                         | Qt.ItemIsDragEnabled)
 
-        nameString = ""
+        nameString = None
+        if clonedItem != None:
+            nameString = f"{clonedItem.data(Qt.DisplayRole)} #2"
+            item.setData(clonedItem.data(Qt.DecorationRole), Qt.DecorationRole)
+        
         if isLpyResource:
-            nameString = f"Resource: {uuid.toString()}"
+            nameString = nameString or f"Resource: {uuid.toString()}"
             item.setFlags(item.flags() & (~Qt.ItemIsDropEnabled))
         else:
-            nameString = f"Group: {uuid.toString()}"
+            nameString = nameString or f"Group: {uuid.toString()}"
         
         item.setData(nameString, Qt.DisplayRole)
         item.setData(uuid, QT_USERROLE_UUID )
-        return item
 
-    def createLpyResource(self, manager=None, subtype=None, parent: QStandardItem = None) -> QStandardItem:
-        # creating an Item with this Widget as parent automatically adds it in the list.
-        item = self.createItem(parent=parent, manager=manager, subtype=subtype)
         if parent == None:
             parent = self.model.invisibleRootItem()
         parent.appendRow(item)
 
-        # if isinstance(parent, TreeItem):
-        # self.setExpanded(parent.index(), True)
-
         return item
-    
+
+    def cloneItem(self, index: QModelIndex = None, parent: QStandardItem = None) -> QStandardItem:
+        if not isinstance(index, QModelIndex):
+            index: QModelIndex = QObject.sender(self).data()
+
+        if self.isLpyResource(index):
+            item: QStandardItem = self.model.itemFromIndex(index)
+            uuid: QUuid = item.data(QT_USERROLE_UUID)
+            resource: dict = self.store[uuid]
+            manager: AbstractObjectManager = resource[STORE_MANAGER_STR]
+            sourceLpyResource: object = resource[STORE_LPYRESOURCE_STR]
+            if parent == None:
+                parent = item.parent()
+            self.createItem(parent=parent, manager=manager, sourceLpyResource=sourceLpyResource, clonedItem=item)
+        else:
+            item: QStandardItem = self.model.itemFromIndex(index)
+            uuid: QUuid = item.data(QT_USERROLE_UUID)
+            if parent == None:
+                parent = item.parent()
+            clone: QStandardItem = self.createItem(parent = parent, clonedItem=item)
+            for childRow in range(item.rowCount()):
+                child = item.child(childRow)
+                self.cloneItem(index=child.index(), parent=clone)
+
+
     def isLpyResource(self, index: QModelIndex) -> bool:
         item: QStandardItem = self.model.itemFromIndex(index)
         uuid: QUuid = item.data(QT_USERROLE_UUID)
@@ -135,6 +288,7 @@ class TreeController(QObject):
         manager.setObjectToEditor(dialog.getEditor(), lpyresource)
         dialog.setWindowTitle(f"{manager.typename} Editor - {name}")
         dialog.setModelIndex(index)
+        dialog.setModal(False)
         dialog.valueChanged.connect(self.saveItem)
         dialog.exec_()
         return dialog
@@ -149,6 +303,7 @@ class TreeController(QObject):
         dialog.setWindowTitle(f"Rename: {name}")
         dialog.setTextValue(name)
         dialog.setModelIndex(index)
+        dialog.setModal(False)
         dialog.valueChanged.connect(self.saveItem)
         dialog.exec_()
         return dialog
