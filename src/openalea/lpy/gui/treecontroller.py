@@ -4,11 +4,11 @@
 from copy import deepcopy
 from PyQt5.QtCore import QMargins, QModelIndex, QObject, QRect, QSize, QUuid, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPainter, QPalette, QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import QDialog, QInputDialog, QStyle, QStyleOptionViewItem, QStyledItemDelegate, QWidget
+from PyQt5.QtWidgets import QDial, QDialog, QInputDialog, QMainWindow, QStyle, QStyleOptionViewItem, QStyledItemDelegate, QWidget
 
 from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
 
-from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
+from openalea.lpy.gui.objecteditorwidget import ObjectEditorWidget
 
 from openalea.lpy.gui.renamedialog import RenameDialog
 
@@ -21,8 +21,8 @@ QT_USERROLE_UUID = Qt.UserRole + 1
 STORE_MANAGER_STR = "manager"
 STORE_LPYRESOURCE_STR = "lpyresource"
 
-THUMBNAIL_HEIGHT=48
-THUMBNAIL_WIDTH=48
+THUMBNAIL_HEIGHT=128
+THUMBNAIL_WIDTH=128
 
 GRID_WIDTH_PX = 192
 GRID_HEIGHT_PX = 36
@@ -168,8 +168,8 @@ class TreeController(QObject):
     treeDelegate: TreeDelegate = None
     listDelegate: ListDelegate = None
 
-    def __init__(self, model: QStandardItemModel, store: dict[object]) -> None:
-        super().__init__()
+    def __init__(self, parent: QWidget, model: QStandardItemModel, store: dict[object]) -> None:
+        super().__init__(parent)
         self.model = model
         self.store = store
         self.treeDelegate: TreeDelegate = TreeDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
@@ -263,6 +263,9 @@ class TreeController(QObject):
 
 
     def isLpyResource(self, index: QModelIndex) -> bool:
+        # index(-1, -1) is the root of the tree. It's actually an empty QStandardItem. Since it's empty it has no UUID so let's return false.
+        if index == self.model.index(-1, -1):
+            return False
         item: QStandardItem = self.model.itemFromIndex(index)
         uuid: QUuid = item.data(QT_USERROLE_UUID)
         resource = self.store[uuid]
@@ -271,27 +274,32 @@ class TreeController(QObject):
         return resource != None
         
         ## ===== editor functions (could be moved to a controller item) =====
-    def editItem(self, index: QModelIndex = None) -> QWidget:
+    def editItem(self, index: QModelIndex = None) -> ObjectEditorWidget:
         # replace self by item
         if not isinstance(index, QModelIndex):
             index: QModelIndex = QObject.sender(self).data()
+
         if not self.isLpyResource(index):
-            return self.renameItem(index)
+            return None
         
         uuid: QUuid = index.data(QT_USERROLE_UUID)
         manager: AbstractObjectManager = self.store[uuid][STORE_MANAGER_STR]
         lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
 
         name = index.data(Qt.DisplayRole)
-        dialog = ObjectEditorDialog(self.parent()) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
-        dialog.setupUi(manager) # the dialog creates the editor and stores it
-        manager.setObjectToEditor(dialog.getEditor(), lpyresource)
-        dialog.setWindowTitle(f"{manager.typename} Editor - {name}")
-        dialog.setModelIndex(index)
-        dialog.setModal(False)
-        dialog.valueChanged.connect(self.saveItem)
-        dialog.exec_()
-        return dialog
+        editorWidget = ObjectEditorWidget(None, manager)
+        editorWidget.setModelIndex(index)
+        editorWidget.valueChanged.connect(self.saveItem)
+        editorWidget.setObject(lpyresource)
+        editorWidget.show()
+        # dialog = QMainWindow(self.parent().parent(), Qt.Window)
+        # dialog.setCentralWidget(editorWidget)
+        # dialog.setWindowTitle(f"{manager.typename} Editor - {name}")
+        # dialog.show()
+        # dialog.activateWindow()
+        # dialog.raise_()
+        print("window raised")
+        return editorWidget
 
     def renameItem(self, index: QModelIndex = None) -> QWidget:
         # replace self by item
@@ -321,7 +329,7 @@ class TreeController(QObject):
                 parent.removeRow(index.row())
             # self.model.endRemoveRows()
 
-    def createEditor(self, index: QModelIndex):
+    def createEditor(self, index: QModelIndex) -> QWidget:
         lpyressourceuuid: QUuid = index.data(QT_USERROLE_UUID)
         isLpyResource = lpyressourceuuid != None
         print(f"create editor for resource isLpyResource: {isLpyResource}")
@@ -339,7 +347,7 @@ class TreeController(QObject):
         self.setModelData(editor, editor.modelIndex)
         
     def setModelData(self, editor: QWidget, index: QModelIndex) -> None:
-        if isinstance(editor, ObjectEditorDialog):
+        if isinstance(editor, ObjectEditorWidget):
             pixmap = editor.getThumbnail()
             min_pixmap = pixmap.scaled(THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, Qt.KeepAspectRatio)
             lpyresource = editor.getLpyResource()

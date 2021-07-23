@@ -8,8 +8,6 @@ from openalea.plantgl.gui.qt.QtWidgets import *
 
 from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
 
-from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
-
 from openalea.lpy.gui.renamedialog import RenameDialog
 
 from openalea.lpy.gui.treecontroller import TreeController
@@ -30,7 +28,7 @@ class TreeView(QTreeView):
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
     isActive: bool = True
     activeGroup = None # can be TreeWidget (if top level) or TreeItem (if group)
-    selectedIndexChanged: pyqtSignal = pyqtSignal(QModelIndex)
+    selectedIndexChanged: pyqtSignal = pyqtSignal(list)
     
     controller: TreeController = None
 
@@ -39,7 +37,6 @@ class TreeView(QTreeView):
         self.panelManager = panelmanager
 
         self.setMinimumSize(96, 96)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAcceptDrops(True)
 
         self.setDragEnabled(True)
@@ -141,13 +138,7 @@ class TreeView(QTreeView):
         model = self.model()
         if selected == []:
             selected = [model.index(-1, -1)] #~that's the root baby
-        elif self.controller.isLpyResource(selected[0]):
-            parent = model.itemFromIndex(selected[0]).parent()
-            if parent == None:
-                selected = [model.index(-1, -1)]
-            else:
-                selected = [parent.index()]
-        self.selectedIndexChanged.emit(selected[0])
+        self.selectedIndexChanged.emit(selected)
         return res
 
     def createItemFromMenu(self): # this is called by the menu callbacks, getting their information from sender(self).data()

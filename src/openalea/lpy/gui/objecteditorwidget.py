@@ -4,19 +4,18 @@ try:
 except:
     py2exe_release = False
 
+from copy import deepcopy
 import typing
 from PyQt5 import QtCore
 from PyQt5.QtCore import QModelIndex, QSize
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtOpenGL import QGLWidget
-from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QOpenGLWidget, QWidget
+from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QOpenGLWidget, QWIDGETSIZE_MAX, QWidget
 from .abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
 from openalea.plantgl.gui.qt.QtWidgets import QApplication, QCheckBox, QDialog, QHBoxLayout, QLayout, QMenuBar, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
 from openalea.plantgl.gui.qt.QtCore import Qt
-
-from openalea.plantgl.algo._pglalgo import GLRenderer, Discretizer
 
 from openalea.plantgl.gui.qt.QtOpenGL import QGLWidget 
 
@@ -27,7 +26,7 @@ import sys
 BASE_DIALOG_SIZE = QSize(300, 400)
 CONTENT_SPACING = 2
 
-class ObjectEditorDialog(QDialog):
+class ObjectEditorWidget(QWidget):
     """the class that will create dialog between the panel and the editor window"""
     valueChanged = pyqtSignal(object)
     thumbnailChanged = pyqtSignal(QPixmap)
@@ -43,24 +42,19 @@ class ObjectEditorDialog(QDialog):
     objectView: QGLWidget = None
 
     modelIndex: QModelIndex = None
+    mainWidget: QWidget = None
 
-    def __init__(self, parent: typing.Optional[QWidget]) -> None:
-        flags = 0
-        flags = flags | Qt.Window
-        super().__init__(parent=parent, flags=flags)
-        self.setModal(False)
-        """during the init of the dialog we have to know the editor we want to open, the typ variable will allow us to know that"""
+    okButton: QPushButton = None
+    cancelButton: QPushButton = None
+    resetButton: QPushButton = None
 
-    def setModelIndex(self, index: QModelIndex):
-        self.modelIndex = index
+    lpyresourceBackup: object = None
 
-    def getEditor(self):
-        return self.objectView
-    
-    def setupUi(self, manager: AbstractObjectManager):
+    def __init__(self, parent: typing.Optional[QWidget], manager: AbstractObjectManager) -> None:
+        super(ObjectEditorWidget, self).__init__()
+        ## this is used if you define this class as child of QMainWindow class.
         self.setObjectName("Main Windows Object Dialog")
         self.setBaseSize(BASE_DIALOG_SIZE)
-        self.manager: AbstractObjectManager = manager
 
         # hierarchy : 
         # vertical layout : 
@@ -72,13 +66,7 @@ class ObjectEditorDialog(QDialog):
         #       - applyButton
         #       - cancelButton
         
-        ## this is used if you define this class as child of QMainWindow class.
-        self.mainWidget = QWidget(self)
-        # OpenGL object
-        # self.mainWidget.discretizer = Discretizer()
-        # self.mainWidget.renderer = GLRenderer(self.mainWidget.discretizer)
-        # self.setCentralWidget(self.mainWidget)
-
+        self.manager: AbstractObjectManager = manager
         self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setSpacing(CONTENT_SPACING)
         self.verticalLayout.setObjectName("verticalLayout")
@@ -117,9 +105,9 @@ class ObjectEditorDialog(QDialog):
         self.horizontalLayout.addWidget(self.okButton)
         self.horizontalLayout.setAlignment(self.okButton, Qt.AlignRight)
 
-        self.screenshotButton = QPushButton(self)
-        self.screenshotButton.setObjectName("screenshotButton")
-        self.horizontalLayout.addWidget(self.screenshotButton)
+        self.resetButton = QPushButton(self)
+        self.resetButton.setObjectName("resetButton")
+        self.horizontalLayout.addWidget(self.resetButton)
 
         self.applyButton = QPushButton(self)
         self.applyButton.setObjectName("applyButton")
@@ -137,17 +125,24 @@ class ObjectEditorDialog(QDialog):
         self.okButton.setText("Ok")
         self.applyButton.setText("Apply")
         self.cancelButton.setText("Cancel")
-        self.screenshotButton.setText("Screenshot")
+        self.resetButton.setText("Reset")
       
         # button connection
         self.cancelButton.pressed.connect(self.__reject)
         self.okButton.pressed.connect(self.__ok)
         self.applyButton.pressed.connect(self.__apply)
-        self.screenshotButton.pressed.connect(self.__screenshot)
+        self.resetButton.pressed.connect(self.__reset)
         self.autoUpdateCheckBox.toggled.connect(self.setAutomaticUpdate)
         self.objectView.valueChanged.connect(self.__valueChanged)
 
         self.manager.fillEditorMenu(self.menubar(), self.objectView)
+
+    def setModelIndex(self, index: QModelIndex):
+        self.modelIndex = index
+
+    def setObject(self, lpyresource: object):
+        self.lpyresourceBackup = deepcopy(lpyresource)
+        self.manager.setObjectToEditor(self.getEditor(), lpyresource)
 
     def __updateThumbail(self):
         qpixmap = self.manager.getPixmapThumbnail(self.objectView)
@@ -160,8 +155,8 @@ class ObjectEditorDialog(QDialog):
             self.isValueChanged = True
 
     def __apply(self):
-        item = self.manager.retrieveObjectFromEditor(self.objectView)
-        print(item)
+        lpyresource = self.manager.retrieveObjectFromEditor(self.objectView)
+        self.lpyresourceBackup = deepcopy(lpyresource)
         self.__updateThumbail()
         self.valueChanged.emit(self)
         self.isValueChanged = False
@@ -180,6 +175,7 @@ class ObjectEditorDialog(QDialog):
         if self.isAutomaticUpdate != value:
             self.isAutomaticUpdate = value
             self.applyButton.setEnabled(not self.isAutomaticUpdate)
+            self.resetButton.setEnabled(not self.isAutomaticUpdate)
             self.AutomaticUpdate.emit(value)
             if self.isAutomaticUpdate and self.isValueChanged :
                 self.__apply()
@@ -188,6 +184,9 @@ class ObjectEditorDialog(QDialog):
     def menubar(self) -> QMenuBar:
         return self._menubar
 
+    def __reset(self):
+        self.manager.setObjectToEditor(self.getEditor(), self.lpyresourceBackup)
+    
     def __screenshot(self):
         qpixmap = self.manager.getPixmapThumbnail(self.objectView)
         self.thumbnailChanged.emit(qpixmap)
@@ -199,3 +198,6 @@ class ObjectEditorDialog(QDialog):
     def getLpyResource(self) -> object:
         item = self.manager.retrieveObjectFromEditor(self.objectView)
         return item
+
+    def getEditor(self) -> QWidget:
+        return self.objectView

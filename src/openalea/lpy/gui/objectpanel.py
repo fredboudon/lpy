@@ -1,5 +1,6 @@
+from PyQt5.QtCore import QModelIndex
 from PyQt5.QtGui import QStandardItemModel
-from PyQt5.QtWidgets import QDialog, QSplitter, QTreeWidget
+from PyQt5.QtWidgets import QBoxLayout, QDialog, QLayout, QSplitter, QTreeWidget
 from openalea.plantgl.all import *
 from openalea.plantgl.gui import qt
 from OpenGL.GL import *
@@ -8,6 +9,8 @@ import sys, traceback, os
 from math import sin, pi
 
 from openalea.lpy.gui.treecontroller import TreeController
+
+from openalea.lpy.gui.objecteditorwidget import ObjectEditorWidget
 
 from .abstractobjectmanager import AbstractObjectManager
 
@@ -250,6 +253,9 @@ class LpyObjectPanelDock (QDockWidget):
     valueChanged = pyqtSignal(bool)
     AutomaticUpdate = pyqtSignal()
     model: QStandardItemModel = None
+    store: dict = None
+    leftPanel: QWidget = None
+    rightPanel: QWidget = None
 
     def __init__(self,parent,name,panelmanager = None):    
         QDockWidget.__init__(self,parent)
@@ -263,22 +269,35 @@ class LpyObjectPanelDock (QDockWidget):
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout.setObjectName(name+"verticalLayout")
         
-        self.objectpanel = QScrollArea(self.dockWidgetContents)
-        self.splitter: QSplitter = QSplitter(self)
 
         self.model: QStandardItemModel = QStandardItemModel( 0, 1, self)
         self.store: dict[object] = {}
-        self.controller = TreeController(model=self.model, store=self.store)
+        self.controller = TreeController(parent=self, model=self.model, store=self.store)
+
+        self.objectpanel = QScrollArea(self.dockWidgetContents)
+        self.splitter: QSplitter = QSplitter(self)
+        self.leftPanel = QWidget(self)
+        self.leftPanel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.rightPanel = QWidget(self)
+        self.rightPanel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.treeView = TreeView(self, panelmanager, self.controller)
         self.listView = ListView(self, panelmanager, self.controller)
-        
-        self.treeView.selectedIndexChanged.connect(self.listView.setRootIndex)
+        leftLayout: QVBoxLayout = QVBoxLayout(self.leftPanel)
+        leftLayout.setContentsMargins(0, 0, 0, 0)
+        rightLayout: QVBoxLayout = QVBoxLayout(self.rightPanel)
+        rightLayout.setContentsMargins(0, 0, 0, 0)
+        self.leftPanel.setLayout(leftLayout)
+        self.leftPanel.setLayout(rightLayout)
+        self.leftPanel.layout().addWidget(self.treeView)
+        self.rightPanel.layout().addWidget(self.listView)
 
+        self.treeView.selectedIndexChanged.connect(self.setRightPanel)
 
         self.splitter.dock = self
 
-        self.splitter.addWidget(self.treeView)
-        self.splitter.addWidget(self.listView)
+        self.splitter.addWidget(self.leftPanel)
+        self.splitter.addWidget(self.rightPanel)
 
         self.objectpanel.setWidget(self.splitter)
         self.objectpanel.setWidgetResizable(True)
@@ -300,6 +319,29 @@ class LpyObjectPanelDock (QDockWidget):
         self.dockNameEdition = False
         self.nameEditorAutoHide = True
         self.setAcceptDrops(True)
+
+    def setRightPanel(self, selectedIndexList: list[QModelIndex]):
+        # this deletes all Editor children, hides or not the list
+        # it's not very beautiful: we should rather build all editors at startup,
+        # hide all widgets except the one we want to show (editor or listview)
+        # and set the data we're clicking on to the editor. That would be more optimal.
+        # for now, it's okay I guess, we're destroying them the best we can.
+        for child in self.rightPanel.findChildren(ObjectEditorWidget):
+            child.setParent(None)
+            child.deleteLater()
+        if len(selectedIndexList) == 1:
+            if self.controller.isLpyResource(selectedIndexList[0]):
+                widget: ObjectEditorWidget = self.controller.editItem(selectedIndexList[0])
+                widget.okButton.hide()
+                widget.cancelButton.hide()
+                self.listView.hide()
+                self.rightPanel.layout().addWidget(widget)
+            else:
+                self.listView.setRootIndex(selectedIndexList[0])
+                self.listView.show()
+        else:
+            self.listView.hide()
+        
     
     def dragEnterEvent(self,event):
         event.acceptProposedAction()
