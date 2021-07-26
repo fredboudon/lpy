@@ -11,6 +11,8 @@ from PyQt5.QtCore import QModelIndex, QSize
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtOpenGL import QGLWidget
 from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QOpenGLWidget, QWIDGETSIZE_MAX, QWidget
+
+from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
 from .abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
@@ -117,8 +119,6 @@ class ObjectEditorWidget(QWidget):
         self.cancelButton.setObjectName("cancelButton")
         self.horizontalLayout.addWidget(self.cancelButton)
 
-        
-        
         # button texts
         self.setWindowTitle("ObjectDialog")
         self.autoUpdateCheckBox.setText("Auto update")
@@ -169,6 +169,11 @@ class ObjectEditorWidget(QWidget):
     def __reject(self):
         self.close()
         self.deleteLater()
+
+    def close(self) -> bool:
+        if isinstance(self.parent(), ObjectEditorDialog):
+            self.parent().close()
+        return super().close()
 
     def setAutomaticUpdate(self,value):
         """setAutomaticUpdate: checking the autoupdate box will make the QDialog send a 'valueChanged()' signal each time it recieve the same Signal from the objectView"""

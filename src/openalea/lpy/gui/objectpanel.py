@@ -8,7 +8,7 @@ from OpenGL.GLU import *
 import sys, traceback, os
 from math import sin, pi
 
-from openalea.lpy.gui.treecontroller import TreeController
+from openalea.lpy.gui.treecontroller import QT_USERROLE_UUID, TreeController
 
 from openalea.lpy.gui.objecteditorwidget import ObjectEditorWidget
 
@@ -293,6 +293,7 @@ class LpyObjectPanelDock (QDockWidget):
         self.rightPanel.layout().addWidget(self.listView)
 
         self.treeView.selectedIndexChanged.connect(self.setRightPanel)
+        self.controller.editorCreated.connect(self.setRightPanel)
 
         self.splitter.dock = self
 
@@ -326,18 +327,24 @@ class LpyObjectPanelDock (QDockWidget):
         # hide all widgets except the one we want to show (editor or listview)
         # and set the data we're clicking on to the editor. That would be more optimal.
         # for now, it's okay I guess, we're destroying them the best we can.
-        for child in self.rightPanel.findChildren(ObjectEditorWidget):
+        for child in self.rightPanel.findChildren(ObjectEditorWidget) + self.rightPanel.findChildren(QLabel):
             child.setParent(None)
             child.deleteLater()
         if len(selectedIndexList) == 1:
-            if self.controller.isLpyResource(selectedIndexList[0]):
-                widget: ObjectEditorWidget = self.controller.editItem(selectedIndexList[0])
+            index: QModelIndex = selectedIndexList[0]
+            if index.data(QT_USERROLE_UUID) in self.controller.uuidEditorOpen:
+                widget: QLabel = QLabel(self)
+                widget.setText("Resource already open in a window.")
+                self.listView.hide()
+                self.rightPanel.layout().addWidget(widget)
+            elif self.controller.isLpyResource(index):
+                widget: ObjectEditorWidget = self.controller.editItem(index)
                 widget.okButton.hide()
                 widget.cancelButton.hide()
                 self.listView.hide()
                 self.rightPanel.layout().addWidget(widget)
             else:
-                self.listView.setRootIndex(selectedIndexList[0])
+                self.listView.setRootIndex(index)
                 self.listView.show()
         else:
             self.listView.hide()
