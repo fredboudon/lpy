@@ -8,7 +8,8 @@ from OpenGL.GLU import *
 import sys, traceback, os
 from math import sin, pi
 
-from openalea.lpy.gui.treecontroller import QT_USERROLE_UUID, TreeController
+from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_UUID
+from openalea.lpy.gui.treecontroller import TreeController
 
 from openalea.lpy.gui.objecteditorwidget import ObjectEditorWidget
 

@@ -15,12 +15,7 @@ from openalea.lpy.gui.renamedialog import RenameDialog
 from openalea.lpy.gui.objectmanagers import get_managers
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
-
-QT_USERROLE_UUID = Qt.UserRole + 1
-
-
-STORE_MANAGER_STR = "manager"
-STORE_LPYRESOURCE_STR = "lpyresource"
+from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR
 
 THUMBNAIL_HEIGHT=128
 THUMBNAIL_WIDTH=128
@@ -290,10 +285,8 @@ class TreeController(QObject):
         manager: AbstractObjectManager = self.store[uuid][STORE_MANAGER_STR]
         lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
 
-        editorWidget = ObjectEditorWidget(None, manager)
-        editorWidget.setModelIndex(index)
+        editorWidget = ObjectEditorWidget(None, index, self.store)
         editorWidget.valueChanged.connect(self.saveItem)
-        editorWidget.setObject(lpyresource)
         # editorWidget.show()
         return editorWidget
 

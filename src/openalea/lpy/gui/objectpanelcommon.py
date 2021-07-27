@@ -1,4 +1,11 @@
 
+from PyQt5.QtCore import Qt
+
+
+QT_USERROLE_UUID = Qt.UserRole + 1
+STORE_MANAGER_STR = "manager"
+STORE_LPYRESOURCE_STR = "lpyresource"
+
 
 def retrieveidinname(name,prefix):
     if name == prefix: return 1

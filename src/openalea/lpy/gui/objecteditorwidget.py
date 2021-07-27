@@ -7,12 +7,14 @@ except:
 from copy import deepcopy
 import typing
 from PyQt5 import QtCore
-from PyQt5.QtCore import QModelIndex, QSize
+from PyQt5.QtCore import QModelIndex, QSize, QUuid
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtOpenGL import QGLWidget
 from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QOpenGLWidget, QWIDGETSIZE_MAX, QWidget
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
+
+from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_UUID, STORE_LPYRESOURCE_STR, STORE_MANAGER_STR
 from .abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
@@ -50,9 +52,9 @@ class ObjectEditorWidget(QWidget):
     cancelButton: QPushButton = None
     resetButton: QPushButton = None
 
-    lpyresourceBackup: object = None
+    store: dict = None
 
-    def __init__(self, parent: typing.Optional[QWidget], manager: AbstractObjectManager) -> None:
+    def __init__(self, parent: typing.Optional[QWidget], index: QModelIndex, store: dict ) -> None:
         super(ObjectEditorWidget, self).__init__()
         ## this is used if you define this class as child of QMainWindow class.
         self.setObjectName("Main Windows Object Dialog")
@@ -67,8 +69,13 @@ class ObjectEditorWidget(QWidget):
         #       - screenshotButton
         #       - applyButton
         #       - cancelButton
-        
-        self.manager: AbstractObjectManager = manager
+        self.modelIndex = index
+        self.store = store
+
+        uuid: QUuid = self.modelIndex.data(QT_USERROLE_UUID)
+        self.manager: AbstractObjectManager = self.store[uuid][STORE_MANAGER_STR]
+        lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
+
         self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setSpacing(CONTENT_SPACING)
         self.verticalLayout.setObjectName("verticalLayout")
@@ -81,7 +88,6 @@ class ObjectEditorWidget(QWidget):
         self.verticalLayout.setMenuBar(self._menubar)
 
         self.objectView = self.manager.getEditor(self) # this CREATES a new editor!!
-        
 
         # sizePolicy.setHorizontalStretch(0)
         # sizePolicy.setVerticalStretch(5)
@@ -137,11 +143,6 @@ class ObjectEditorWidget(QWidget):
 
         self.manager.fillEditorMenu(self.menubar(), self.objectView)
 
-    def setModelIndex(self, index: QModelIndex):
-        self.modelIndex = index
-
-    def setObject(self, lpyresource: object):
-        self.lpyresourceBackup = deepcopy(lpyresource)
         self.manager.setObjectToEditor(self.getEditor(), lpyresource)
 
     def __updateThumbail(self):
@@ -155,8 +156,6 @@ class ObjectEditorWidget(QWidget):
             self.isValueChanged = True
 
     def __apply(self):
-        lpyresource = self.manager.retrieveObjectFromEditor(self.objectView)
-        self.lpyresourceBackup = deepcopy(lpyresource)
         self.__updateThumbail()
         self.valueChanged.emit(self)
         self.isValueChanged = False
@@ -190,11 +189,10 @@ class ObjectEditorWidget(QWidget):
         return self._menubar
 
     def __reset(self):
-        self.manager.setObjectToEditor(self.getEditor(), self.lpyresourceBackup)
-    
-    def __screenshot(self):
-        qpixmap = self.manager.getPixmapThumbnail(self.objectView)
-        self.thumbnailChanged.emit(qpixmap)
+        uuid: QUuid = self.modelIndex.data(QT_USERROLE_UUID)
+        lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
+        self.manager.setObjectToEditor(self.getEditor(), lpyresource)
+        self.objectView.update()
 
     def getThumbnail(self) -> QPixmap:
         qpixmap = self.manager.getPixmapThumbnail(self.objectView)
