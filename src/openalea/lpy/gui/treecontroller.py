@@ -273,21 +273,10 @@ class TreeController(QObject):
         # resource = None otherwise
         return resource != None
         
-        ## ===== editor functions (could be moved to a controller item) =====
-    def editItem(self, index: QModelIndex = None) -> ObjectEditorWidget:
-        if not isinstance(index, QModelIndex):
-            index: QModelIndex = QObject.sender(self).data()
+    def createEditorWidget(self, parent: QWidget, manager: AbstractObjectManager) -> ObjectEditorWidget:
 
-        if not self.isLpyResource(index):
-            return None
-        
-        uuid: QUuid = index.data(QT_USERROLE_UUID)
-        manager: AbstractObjectManager = self.store[uuid][STORE_MANAGER_STR]
-        lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
-
-        editorWidget = ObjectEditorWidget(None, index, self.store)
+        editorWidget = ObjectEditorWidget(parent, manager, self.store)
         editorWidget.valueChanged.connect(self.saveItem)
-        # editorWidget.show()
         return editorWidget
 
     def editItemWindow(self, index: QModelIndex = None) -> QWidget:
@@ -307,7 +296,8 @@ class TreeController(QObject):
         manager: AbstractObjectManager = self.store[uuid][STORE_MANAGER_STR]
         lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
 
-        editorWidget: ObjectEditorWidget = self.editItem(index)
+        editorWidget: ObjectEditorWidget = self.createEditorWidget(self.parent(), manager)
+        editorWidget.setModelIndex(index)
         dialog = ObjectEditorDialog(self.parent())
         editorWidget.setParent(dialog)
         dialog.uuid = uuid
@@ -339,25 +329,10 @@ class TreeController(QObject):
             indexList: QModelIndex = QObject.sender(self).data()
         print(len(indexList), indexList)
         if (len(indexList) > 0):
-            # self.model.beginRemoveRows()
             for index in indexList:
                 item: QStandardItem = self.model.itemFromIndex(index)
                 parent = item.parent() or self.model.invisibleRootItem()
                 parent.removeRow(index.row())
-            # self.model.endRemoveRows()
-
-    # def createEditor(self, index: QModelIndex) -> QWidget:
-    #     lpyressourceuuid: QUuid = index.data(QT_USERROLE_UUID)
-    #     isLpyResource = lpyressourceuuid != None
-    #     print(f"create editor for resource isLpyResource: {isLpyResource}")
-    #     editor: QWidget = None
-    #     self.parentWidget: QWidget =  QWidget()
-    #     if isLpyResource:
-    #         editor: QWidget = self.editItemWindow(index)
-    #     else:
-    #         editor: QWidget = self.renameItem(index)
-    #     editor.show()
-    #     return editor
 
     def saveItem(self, editor: QDialog):
         self.setModelData(editor, editor.modelIndex)

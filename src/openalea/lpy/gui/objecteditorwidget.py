@@ -53,9 +53,10 @@ class ObjectEditorWidget(QWidget):
     resetButton: QPushButton = None
 
     store: dict = None
+    manager: AbstractObjectManager = None
 
-    def __init__(self, parent: typing.Optional[QWidget], index: QModelIndex, store: dict ) -> None:
-        super(ObjectEditorWidget, self).__init__()
+    def __init__(self, parent: typing.Optional[QWidget], manager: AbstractObjectManager, store: dict) -> None:
+        super(ObjectEditorWidget, self).__init__(parent)
         ## this is used if you define this class as child of QMainWindow class.
         self.setObjectName("Main Windows Object Dialog")
         self.setBaseSize(BASE_DIALOG_SIZE)
@@ -69,12 +70,9 @@ class ObjectEditorWidget(QWidget):
         #       - screenshotButton
         #       - applyButton
         #       - cancelButton
-        self.modelIndex = index
-        self.store = store
 
-        uuid: QUuid = self.modelIndex.data(QT_USERROLE_UUID)
-        self.manager: AbstractObjectManager = self.store[uuid][STORE_MANAGER_STR]
-        lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
+        self.manager = manager
+        self.store = store
 
         self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setSpacing(CONTENT_SPACING)
@@ -141,8 +139,12 @@ class ObjectEditorWidget(QWidget):
         self.autoUpdateCheckBox.toggled.connect(self.setAutomaticUpdate)
         self.objectView.valueChanged.connect(self.__valueChanged)
 
-        self.manager.fillEditorMenu(self.menubar(), self.objectView)
-
+    def setModelIndex(self, index: QModelIndex):
+        self.modelIndex = index
+        uuid: QUuid = self.modelIndex.data(QT_USERROLE_UUID)
+        manager: object = self.store[uuid][STORE_MANAGER_STR]
+        assert(isinstance(self.manager, manager.__class__))
+        lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
         self.manager.setObjectToEditor(self.getEditor(), lpyresource)
 
     def __updateThumbail(self):

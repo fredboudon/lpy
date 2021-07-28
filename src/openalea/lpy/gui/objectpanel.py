@@ -1,6 +1,6 @@
 from PyQt5.QtCore import QModelIndex
 from PyQt5.QtGui import QStandardItemModel
-from PyQt5.QtWidgets import QBoxLayout, QDialog, QLayout, QSplitter, QTreeWidget
+from PyQt5.QtWidgets import QBoxLayout, QDialog, QLayout, QSplitter, QStackedLayout, QTreeWidget
 from openalea.plantgl.all import *
 from openalea.plantgl.gui import qt
 from OpenGL.GL import *
@@ -23,7 +23,7 @@ from openalea.plantgl.gui.qt.QtWidgets import QAbstractItemView, QAction, QAppli
 
 SCROLL_SINGLE_STEP = 5
 
-from .objectpanelcommon import TriggerParamFunc, retrieveidinname, retrievemaxidname, retrievebasename
+from .objectpanelcommon import STORE_MANAGER_STR, TriggerParamFunc, retrieveidinname, retrievemaxidname, retrievebasename
 
         
 from .objectdialog import ObjectDialog
@@ -279,19 +279,31 @@ class LpyObjectPanelDock (QDockWidget):
         self.splitter: QSplitter = QSplitter(self)
         self.leftPanel = QWidget(self)
         self.leftPanel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.rightPanel = QWidget(self)
-        self.rightPanel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
         self.treeView = TreeView(self, panelmanager, self.controller)
-        self.listView = ListView(self, panelmanager, self.controller)
         leftLayout: QVBoxLayout = QVBoxLayout(self.leftPanel)
         leftLayout.setContentsMargins(0, 0, 0, 0)
-        rightLayout: QVBoxLayout = QVBoxLayout(self.rightPanel)
-        rightLayout.setContentsMargins(0, 0, 0, 0)
         self.leftPanel.setLayout(leftLayout)
-        self.leftPanel.setLayout(rightLayout)
         self.leftPanel.layout().addWidget(self.treeView)
+
+        # rightPanel can bear : 1 QLabel, 1 listView, 4 ObjectEditorWidget
+        self.rightPanel = QWidget(self)
+        self.rightPanel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        rightLayout: QStackedLayout = QStackedLayout(self.rightPanel)
+        rightLayout.setContentsMargins(0, 0, 0, 0)
+        self.rightPanel.setLayout(rightLayout)
+
+        resourceAlreadyOpenLabel: QLabel = QLabel(self)
+        resourceAlreadyOpenLabel.setText("Resource already open in a window.")
+        self.listView = ListView(self, panelmanager, self.controller)
         self.rightPanel.layout().addWidget(self.listView)
+        self.rightPanel.layout().addWidget(resourceAlreadyOpenLabel)
+
+        for typename, manager in list(get_managers().items()):
+            editorWidget = self.controller.createEditorWidget(parent=self.rightPanel, manager=manager)
+            editorWidget.okButton.hide()
+            editorWidget.cancelButton.hide()
+            print(f"created {typename}")
+            self.rightPanel.layout().addWidget(editorWidget)
 
         self.treeView.selectedIndexChanged.connect(self.setRightPanel)
         self.controller.editorCreated.connect(self.setRightPanel)
@@ -323,32 +335,29 @@ class LpyObjectPanelDock (QDockWidget):
         self.setAcceptDrops(True)
 
     def setRightPanel(self, selectedIndexList: list[QModelIndex]):
-        # this deletes all Editor children, hides or not the list
-        # it's not very beautiful: we should rather build all editors at startup,
-        # hide all widgets except the one we want to show (editor or listview)
-        # and set the data we're clicking on to the editor. That would be more optimal.
-        # for now, it's okay I guess, we're destroying them the best we can.
-        for child in self.rightPanel.findChildren(ObjectEditorWidget) + self.rightPanel.findChildren(QLabel):
-            child.setParent(None)
-            child.deleteLater()
+        layout: QStackedLayout = self.rightPanel.layout()
+        for i in layout.findChildren(object):
+            print(i)
         if len(selectedIndexList) == 1:
+            self.rightPanel.show()
             index: QModelIndex = selectedIndexList[0]
             if index.data(QT_USERROLE_UUID) in self.controller.uuidEditorOpen:
-                widget: QLabel = QLabel(self)
-                widget.setText("Resource already open in a window.")
-                self.listView.hide()
-                self.rightPanel.layout().addWidget(widget)
+                label: QLabel = self.rightPanel.findChild(QLabel)
+                layout.setCurrentWidget(label)
             elif self.controller.isLpyResource(index):
-                widget: ObjectEditorWidget = self.controller.editItem(index)
-                widget.okButton.hide()
-                widget.cancelButton.hide()
-                self.listView.hide()
-                self.rightPanel.layout().addWidget(widget)
+                uuid = index.data(QT_USERROLE_UUID)
+                manager = self.store[uuid][STORE_MANAGER_STR]
+                editors: list[ObjectEditorWidget] = self.rightPanel.findChildren(ObjectEditorWidget)
+                editorFound = list(filter(lambda i: i.manager.__class__ == manager.__class__, editors))
+                editor: ObjectEditorWidget = editorFound[0]
+                layout.setCurrentWidget(editor)
+                editor.setModelIndex(index)
             else:
-                self.listView.setRootIndex(index)
-                self.listView.show()
+                listView: ListView = self.rightPanel.findChild(ListView)
+                listView.setRootIndex(index)
+                layout.setCurrentWidget(listView)
         else:
-            self.listView.hide()
+            layout.setCurrentIndex(-1)
         
     
     def dragEnterEvent(self,event):
