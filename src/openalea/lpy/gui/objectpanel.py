@@ -307,7 +307,7 @@ class LpyObjectPanelDock (QDockWidget):
 
         self.treeView.selectedIndexChanged.connect(self.setRightPanel)
         self.controller.editorCreated.connect(self.setRightPanel)
-
+        self.controller.editorClosed.connect(self.setRightPanel)
         self.splitter.dock = self
 
         self.splitter.addWidget(self.leftPanel)

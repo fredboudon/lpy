@@ -8,7 +8,7 @@ from copy import deepcopy
 import typing
 from PyQt5 import QtCore
 from PyQt5.QtCore import QModelIndex, QSize, QUuid
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QCloseEvent, QPixmap
 from PyQt5.QtOpenGL import QGLWidget
 from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QOpenGLWidget, QWIDGETSIZE_MAX, QWidget
 
@@ -165,16 +165,15 @@ class ObjectEditorWidget(QWidget):
     def __ok(self):
         self.__apply()
         self.close()
-        self.deleteLater()
 
     def __reject(self):
         self.close()
-        self.deleteLater()
 
     def close(self) -> bool:
+        super().close()
         if isinstance(self.parent(), ObjectEditorDialog):
-            self.parent().close()
-        return super().close()
+            self.parent().manualClose()
+        return 
 
     def setAutomaticUpdate(self,value):
         """setAutomaticUpdate: checking the autoupdate box will make the QDialog send a 'valueChanged()' signal each time it recieve the same Signal from the objectView"""

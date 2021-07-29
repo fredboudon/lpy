@@ -20,12 +20,14 @@ from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_PIXMAP, QT_USERROLE_U
 THUMBNAIL_HEIGHT=128
 THUMBNAIL_WIDTH=128
 
-GRID_WIDTH_PX = 192
-GRID_HEIGHT_PX = 192
+GRID_WIDTH_PX = 128
+GRID_HEIGHT_PX = 128
+GRID_GAP = 8 #px
 
 class ListDelegate(QStyledItemDelegate):
     createEditorCalled: pyqtSignal = pyqtSignal(QModelIndex)
     _store: dict = None
+    
 
     def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QWidget:
         # return super().createEditor(parent, option, index)
@@ -47,8 +49,7 @@ class ListDelegate(QStyledItemDelegate):
         palette: QPalette = QPalette(opt.palette)
         rect: QRect = QRect(opt.rect)
 
-        iconSize: QSize = QSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
-        margins: QMargins = QMargins(16, 16, 16, 16) #px
+        margins: QMargins = QMargins(GRID_GAP, GRID_GAP, GRID_GAP, GRID_GAP) #px
 
         contentRect: QRect = QRect(rect.adjusted(margins.left(),
                                                 margins.top(),
@@ -107,6 +108,7 @@ class ListDelegate(QStyledItemDelegate):
         f.setPointSizeF(opt.font.pointSize() * 0.8)
         fontColor: QColor = QColor("#121212")
         painter.setPen(fontColor)
+        painter.setFont(f)
         painter.drawText(textRect, Qt.TextWordWrap | Qt.AlignCenter,
                         index.data(Qt.DisplayRole))
         painter.restore()
@@ -134,6 +136,7 @@ class TreeController(QObject):
     listDelegate: ListDelegate = None
     uuidEditorOpen: list[QUuid] = None # stores the editor dialogs QUuids open (we don't want to store multiple dialogs)
     editorCreated: pyqtSignal = pyqtSignal(list)
+    editorClosed: pyqtSignal = pyqtSignal(list)
 
 
     def __init__(self, parent: QWidget, model: QStandardItemModel, store: dict[object]) -> None:
@@ -270,13 +273,20 @@ class TreeController(QObject):
         editorWidget.setModelIndex(index)
         dialog = ObjectEditorDialog(self.parent())
         editorWidget.setParent(dialog)
-        dialog.uuid = uuid
+        dialog.index = index
         dialog.setCentralWidget(editorWidget)
         dialog.setWindowTitle(f"{manager.typename} Editor - {name}")
-        dialog.closed.connect(self.uuidEditorOpen.remove)
+        dialog.closed.connect(self.emitConnect)
         dialog.show()
         self.editorCreated.emit([index])
         # return dialog
+
+    def emitConnect(self, index: QModelIndex):
+        self.uuidEditorOpen.remove(index.data(QT_USERROLE_UUID))
+        if index.parent() == None:
+            self.editorClosed.emit([self.model.index(-1, -1)])
+        else:
+            self.editorClosed.emit([index.parent()])
 
     def renameItem(self, index: QModelIndex = None) -> QWidget:
         # replace self by item
