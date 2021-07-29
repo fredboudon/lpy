@@ -2,8 +2,8 @@
 
 
 from copy import deepcopy
-from PyQt5.QtCore import QMargins, QModelIndex, QObject, QRect, QSize, QUuid, Qt, pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPainter, QPalette, QStandardItem, QStandardItemModel
+from PyQt5.QtCore import QMargins, QModelIndex, QObject, QPoint, QRect, QSize, QUuid, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPainter, QPalette, QPixmap, QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QDial, QDialog, QInputDialog, QMainWindow, QStyle, QStyleOptionViewItem, QStyledItemDelegate, QVBoxLayout, QWidget
 
 from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
@@ -15,16 +15,18 @@ from openalea.lpy.gui.renamedialog import RenameDialog
 from openalea.lpy.gui.objectmanagers import get_managers
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
-from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR
+from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR
 
 THUMBNAIL_HEIGHT=128
 THUMBNAIL_WIDTH=128
 
 GRID_WIDTH_PX = 192
-GRID_HEIGHT_PX = 36
+GRID_HEIGHT_PX = 192
 
 class ListDelegate(QStyledItemDelegate):
     createEditorCalled: pyqtSignal = pyqtSignal(QModelIndex)
+    _store: dict = None
+
     def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QWidget:
         # return super().createEditor(parent, option, index)
         print("create Editor called")
@@ -35,7 +37,7 @@ class ListDelegate(QStyledItemDelegate):
         return QFontMetrics(f).boundingRect(index.data(QT_USERROLE_UUID).toString()).adjusted(0, 0, 1, 1)
 
     def paint(self, painter: QPainter, option: 'QStyleOptionViewItem', index: QModelIndex) -> None:
-        return super().paint(painter, option, index)
+        # return super().paint(painter, option, index)
         
         ## The following paint code only works for QListView with:
         ##      self.setFlow(QListView.LeftToRight)
@@ -46,17 +48,20 @@ class ListDelegate(QStyledItemDelegate):
         rect: QRect = QRect(opt.rect)
 
         iconSize: QSize = QSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
-        margins: QMargins = QMargins(0, 0, 0, 0)
-        spacingHorizontal: int = 0
-        spacingVertical: int  = 0
+        margins: QMargins = QMargins(16, 16, 16, 16) #px
 
         contentRect: QRect = QRect(rect.adjusted(margins.left(),
                                                 margins.top(),
                                                 -margins.right(),
                                                 -margins.bottom()))
-        lastIndex = (index.model().rowCount() - 1) == index.row()
+        thumbnailHeightRatio: float = 5
+        textHeightRatio: float = 2
+        # css equivalent: grid-template-rows = 5fr 2fr
+
+        thumbnailRect = QRect(contentRect.adjusted(0, 0, 0, - contentRect.height() * float(textHeightRatio / (textHeightRatio + thumbnailHeightRatio))))
+        textRect = QRect(contentRect.adjusted(0, thumbnailRect.height(), 0, 0))
+        # textRect.setHeight(contentRect.height() / 2)
         hasIcon = not opt.icon.isNull()
-        bottomEdge = rect.bottom()
         f: QFont = QFont(opt.font)
         f.setPointSize(opt.font.pointSize())
         painter.save()
@@ -69,83 +74,47 @@ class ListDelegate(QStyledItemDelegate):
         if opt.state & QStyle.State_Selected:
             colorRectFill = palette.highlight().color()
         else:
-            colorRectFill = palette.mid().color()
+            colorRectFill = palette.light().color()
+        
         painter.fillRect(rect, colorRectFill)
 
-        # // Draw bottom line
-        lineColor: QColor = None
-        startLine: QRect = None
-        if lastIndex:
-            lineColor = palette.dark().color()
-            startLine =  rect.left()
-        else:
-            lineColor = palette.mid().color()
-            startLine = margins.left()
+
+        lineColor: QColor = QColor("#16365c")
         painter.setPen(lineColor)
-        painter.drawLine(startLine, bottomEdge, rect.right(), bottomEdge)
+        painter.drawLine(contentRect.left(), contentRect.top(), contentRect.right(), contentRect.top())
+        painter.drawLine(contentRect.left(), contentRect.bottom(), contentRect.right(), contentRect.bottom())
+        painter.drawLine(contentRect.left(), contentRect.top(), contentRect.left(), contentRect.bottom())
+        painter.drawLine(contentRect.right(), contentRect.top(), contentRect.right(), contentRect.bottom())
 
-        # // Draw message icon
-        if (hasIcon):
-            painter.drawPixmap(contentRect.left(), contentRect.top(),
-                                opt.icon.pixmap(QSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)))
-        # // Draw timestamp
-        f: QFont = QFont(opt.font)
-
-        f.setPointSizeF(opt.font.pointSize() * 0.8)
-
-        timestampBox = QFontMetrics(f).boundingRect(index.data(QT_USERROLE_UUID).toString()).adjusted(0, 0, 1, 1)
-
-        timeStampRect: QRect = QRect(timestampBox)
-        timeStampRect.setWidth(contentRect.width() - spacingHorizontal - iconSize.width())
-        timeStampRect.setHeight(int(float(contentRect.height()) / 2))
-        timeStampRect.moveTo(margins.left() + iconSize.width()
-                            + spacingHorizontal, contentRect.top())
-
-        painter.setFont(f)
-        painter.setPen(palette.text().color())
-        painter.drawText(timeStampRect, Qt.TextSingleLine | Qt.AlignLeft,
-                        index.data(QT_USERROLE_UUID).toString())
-
-        # // Draw message text
-        messageRect: QRect = QRect(opt.fontMetrics.boundingRect(opt.text).adjusted(0, 0, 1, 1))
-        # messageRect: QRect = QRect(0, 0, contentRect.width() - spacingHorizontal - iconSize.width(), (contentRect.height() - spacingVertical)/2)
-        messageRect.setWidth(contentRect.width() - spacingHorizontal - iconSize.width())
-        messageRect.setHeight(int(float(contentRect.height()) / 2))
-        messageRect.moveTo(timeStampRect.left(), timeStampRect.bottom()
-                        + spacingVertical)
-
-        painter.setFont(opt.font)
-        painter.setPen(palette.windowText().color())
+        painter.fillRect(thumbnailRect, QColor("#f1f1f1"))
+        if self._store[index.data(QT_USERROLE_UUID)] != None: #isLpyResource == True
+            painter.fillRect(textRect, QColor("#b7cde5"))
+        else:
+            painter.fillRect(textRect, QColor("#e5b7b7"))
         
-        painter.drawText(messageRect, Qt.TextSingleLine | Qt.AlignLeft, opt.text)
-
+        # icon:             iconPixmap = opt.icon.pixmap(thumbnailSize)
+        dataPixmap: QPixmap = index.data(QT_USERROLE_PIXMAP)
+        if (dataPixmap):
+            w, h = thumbnailRect.width(), thumbnailRect.height()
+            scaledPixmap: QPixmap = dataPixmap.scaled(w, h, Qt.KeepAspectRatio)
+            thumbnailRect.setWidth(scaledPixmap.width())
+            thumbnailRect.setHeight(scaledPixmap.height())
+            thumbnailRect.moveLeft(thumbnailRect.left() + (w - thumbnailRect.width())/2)
+            thumbnailRect.moveTop(thumbnailRect.top() +  (h - thumbnailRect.height())/2)
+            painter.drawPixmap(thumbnailRect, scaledPixmap)
+        
+        f: QFont = QFont(opt.font)
+        f.setPointSizeF(opt.font.pointSize() * 0.8)
+        fontColor: QColor = QColor("#121212")
+        painter.setPen(fontColor)
+        painter.drawText(textRect, Qt.TextWordWrap | Qt.AlignCenter,
+                        index.data(Qt.DisplayRole))
         painter.restore()
         
 
     def sizeHint(self, option: 'QStyleOptionViewItem', index: QModelIndex) -> QSize:
-        return super().sizeHint(option, index)
-
-        ## The following paint code only works for QListView with:
-        ##      self.setFlow(QListView.LeftToRight)
-        ##      self.setWrapping(False)
-
-        iconSize: QSize = QSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
-        margins: QMargins = QMargins(0, 0, 0, 0)
-        spacingHorizontal = 0
-        spacingVertical = 0
-
-        opt: QStyleOptionViewItem = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-
-        timestampBox = opt.fontMetrics.boundingRect(index.data(QT_USERROLE_UUID).toString()).adjusted(0, 0, 1, 1)
-        messageBox: QRect = QRect(opt.fontMetrics.boundingRect(opt.text).adjusted(0, 0, 1, 1))
-        textHeight: int = timestampBox.height() + spacingVertical + messageBox.height()
-        iconHeight: int = iconSize.height()
-        h: int = max(textHeight, iconHeight)
-
-        return QSize(opt.rect.width(), margins.top() + h
-                    + margins.bottom())
-        # """
+        # return super().sizeHint(option, index)
+        return QSize(GRID_WIDTH_PX, GRID_HEIGHT_PX)
 
 
 class TreeDelegate(QStyledItemDelegate):
@@ -174,6 +143,7 @@ class TreeController(QObject):
         self.treeDelegate: TreeDelegate = TreeDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
         self.treeDelegate.createEditorCalled.connect(self.editItemWindow)
         self.listDelegate: ListDelegate = ListDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
+        self.listDelegate._store = store
         self.listDelegate.createEditorCalled.connect(self.editItemWindow)
         self.uuidEditorOpen: list[QUuid] = []
 
@@ -345,7 +315,9 @@ class TreeController(QObject):
             uuid: QUuid = index.data(QT_USERROLE_UUID)
             self.store[uuid][STORE_LPYRESOURCE_STR] = lpyresource
             model = index.model()
+            model.setData(index, pixmap, QT_USERROLE_PIXMAP)
             model.setData(index, min_pixmap, Qt.DecorationRole)
+
         elif isinstance(editor, QInputDialog):
             data = editor.textValue()
             print(f"setting model data: {data}")

@@ -150,7 +150,7 @@ class ListView(QListView):
                 menuActions["Edit"] = QAction('Edit',self)
                 menuActions["Edit"].setFont(f)
                 menuActions["Edit"].setData(clickedIndex)
-                menuActions["Edit"].triggered.connect(self.controller.editItem)
+                menuActions["Edit"].triggered.connect(self.controller.editItemWindow)
 
             menuActions["Clone"] = QAction("Clone", self)
             menuActions["Clone"].setData(clickedIndex)
