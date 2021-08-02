@@ -2,24 +2,76 @@ vue en liste:
 
 1. faire marcher le drag and drop.
 
-2. 
 
-clic sur un groupe -> affiche à droite la liste des noeuds dans ce groupe (ou rien s'il n'y a rien)
-  |--> dans ce cas, afficher aussi les groupes comme des dossiers
-  |--> dans la liste, double-cliquer sur un groupe --> rentrer dans le groupe (et en informer le Tree)
-  |--> dans la liste, double-cliquer sur une LpyResource --> ouvrir l'éditeur
-  |--> dans la liste, simple-cliquer sur une LpyResource --> ne rien faire
-  |--> dans la liste, simple-cliquer sur un groupe --> ne rien faire
-  
-clic sur un noeud terminal -> affiche à droite le plus d'informations à ce noeud (au moins une miniature, d'autres infos)
-Note : Christophe veut 1 résultat pour 1 action:
-- double-cliquer dans un item du Tree ==> renommer (toujours!)
-- double-cliquer dans un item de la liste ==> editer (toujours!)
+2.2. l'affichage par delegate (terminer la fonction sizeHint) # bon ça marche pas ouf avec l'item wrapping, on verra plus tard
 
+2.3. duplication d'objets # fait, et même duplication de groupes
+2.4. widget d'édition de ressource dans le panel droit 
+- sélection d'une ressource -> Widget d'Edition dans le panel droit
+- sélection d'un groupe -> affichage de la liste des éléments (comme c'est déjà)
+- sélection de plusieurs ressource -> rien dans le panel droit
+- double-clic sur:
+  + une ressource: Dialog (nouvelle fenêtre) d'édition
+    |--> dans ce cas, le panel de droite n'affiche rien.
+  + un groupe : rien
+2.5. plusieurs fenêtres d'édition
+2.6. icones: 
+- arbre de gauche : icones simples (par type) (faire les petites icones)
+- liste de droite: icones détaillées (par item) + icone générique pour les groupes.
 
+- éviter la deepcopy pour le reset
+- éviter la re-création de widget editor
+- appeler Julien pour faire une visu meilleure 
+- commencer à réimplémenter les interfaces de LpyObjectPanelDock (getObject, setObject)
+  |--> on va pouvoir charger des fichiers Lpy, (éventuellement) les sauvegarder, mais en tant que liste (pas de groupes pour la compatibilité immédiate)
+- puis, avec Fred, trouver comment importer/exporter le store en JSON
 
 3. dump et load de JSON
 
+Penser à re-discuter avec Fred et Christophe sur la sauvegarde des Lpyresources
+- niveau projet Lpy
+- niveau système
+crée une resource -> niveau projet
+sauvegarde le projet -> la resource reste au niveau projet
+[Action] exporter la ressource:
+  |--> la ressource passe au niveau système
+  |--> la référence de la ressource pointe vers la ressource niveau système
+[Action] importer la ressource:
+  |--> la ressource passe au niveau projet (ressource clonée)
+  |--> la référence de la ressource devient celle au niveau projet
+[Action] cloner la ressource:
+  |--> ressource niveau projet : clonage OK
+  |--> ressource niveau système : clonage interdit
+  |--> cloner une ressource entre 2 projets : passer par le presse-papier ? (difficle, pas de pickle?)
+
+
+mécanique de timeline:
+- groupes spéciaux de type "timeline"
+- chaque groupe à un range(0, 1) avec N timepoints définis par l'utilisateur
+- chaque sous group-timline dans un group-timeline hérite du range de son parent
+- chaque group-timeline ne peut contenir qu'une seule ressource de base
+- chaque ressource créée dans un group-timeline est deepclonée N fois
+- un group-timeline peut être créé:
+  - soit dans le vide, et il faut définir quelle ressource est créée
+  - soit à partir d'une ressource en dehors d'un group-timeline, et la ressource est dupliquée
+  - soit en clonant un autre group-timeline
+- on peut éditer les timepoints dans un group-tliemine (CRUD)
+
+comportement
+- Chaque ressource éditée est deep-clonée dans toutes les ressources à timepoint supérieur
+
+Problème global de la gestion des groupes: 
+- à chaque ressource, on doit pouvoir mapper un nom "human-readable" pour décrire la position de la ressource dans l'arbre.
+- pour le moment, les ressources et les groupes sont a posteriori exposés comme des objets python.
+- {JE SUGGERE} on peut exposer à Lpy un dict décrivant la structure d'arbre:
+  |- un groupe = "nom du groupe": { ... }
+  |- une lpyresource (dans un group normal) = "nom de la lpyresource": Object Python.
+  |- une lpyresource (dans une group-timeline) = {{timepoint}}: Object Python (avec {{timepoint}}: float)
+- contrainte: à un niveau, les noms doivent être uniques (clés uniques dans le dict)
+- résultat : on peut appeler :
+  |- `store["Mon 1er Groupe"]["Le 2e Group"]["MaLpyResource"]` -> object | pour une lpyresource hors group-timeline
+  |- `store["Mon 1er Groupe"]["Le 2e Group"]["MaLpyResourceInGroupTimeline"][0.2]` -> object | pour une lpyresource dans group-timeline
+- itérer sur un groupe : `for item in store["Mon 1er Groupe"]["Le 2e Group"]:`
 
 
 Finalement :
