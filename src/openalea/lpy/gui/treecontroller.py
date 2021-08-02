@@ -295,10 +295,10 @@ class TreeController(QObject):
 
         name = f"{index.data(Qt.DisplayRole)}"
         dialog = RenameDialog(self.parent()) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
-        dialog.setTextValue(name)
         dialog.setModelIndex(index)
+        dialog.setTextValue(name)
         dialog.setWindowTitle(f"Rename: {name}")
-        dialog.setLabelText(f"Rename: {name}")
+        dialog.setOriginalLabelText(f"Rename: {name}")
         dialog.valueChanged.connect(self.saveItem)
         dialog.exec_()
         return dialog
@@ -326,7 +326,7 @@ class TreeController(QObject):
             self.store[uuid][STORE_LPYRESOURCE_STR] = lpyresource
             model = index.model()
             model.setData(index, pixmap, QT_USERROLE_PIXMAP)
-            model.setData(index, min_pixmap, Qt.DecorationRole)
+            # model.setData(index, min_pixmap, Qt.DecorationRole)
 
         elif isinstance(editor, QInputDialog):
             data = editor.textValue()

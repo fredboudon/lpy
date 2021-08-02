@@ -8,8 +8,6 @@ from openalea.plantgl.gui.qt.QtWidgets import *
 
 from openalea.lpy.gui.abstractobjectmanager import AbstractObjectManager
 
-from openalea.lpy.gui.renamedialog import RenameDialog
-
 from openalea.lpy.gui.treecontroller import TreeController
 from .objectmanagers import get_managers
 import pprint
