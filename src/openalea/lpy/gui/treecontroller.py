@@ -15,7 +15,7 @@ from openalea.lpy.gui.renamedialog import RenameDialog
 from openalea.lpy.gui.objectmanagers import get_managers
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
-from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR
+from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_GROUPTIMELINE_NAME, QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR
 
 from openalea.lpy.gui.timepointsdialog import TimePointsDialog
 
@@ -25,6 +25,10 @@ THUMBNAIL_WIDTH=128
 GRID_WIDTH_PX = 128
 GRID_HEIGHT_PX = 128
 GRID_GAP = 8 #px
+
+LPYRESOURCE_COLOR_STR = "#b7cde5"
+GROUPTIMELINE_COLOR_STR = "#b7e5b7"
+GROUP_COLOR_STR = "#e5b7b7"
 
 class ListDelegate(QStyledItemDelegate):
     createEditorCalled: pyqtSignal = pyqtSignal(QModelIndex)
@@ -90,10 +94,7 @@ class ListDelegate(QStyledItemDelegate):
         painter.drawLine(contentRect.right(), contentRect.top(), contentRect.right(), contentRect.bottom())
 
         painter.fillRect(thumbnailRect, QColor("#f1f1f1"))
-        if self._store[index.data(QT_USERROLE_UUID)] != None: #isLpyResource == True
-            painter.fillRect(textRect, QColor("#b7cde5"))
-        else:
-            painter.fillRect(textRect, QColor("#e5b7b7"))
+        painter.fillRect(textRect, index.data(Qt.BackgroundColorRole))
         
         # icon:             iconPixmap = opt.icon.pixmap(thumbnailSize)
         dataPixmap: QPixmap = index.data(QT_USERROLE_PIXMAP)
@@ -172,60 +173,72 @@ class TreeController(QObject):
             newItem = self.createItem(parent=lastitem, manager=None, subtype=None)
             lastitem = newItem
 
-    def createItem(self, parent: QStandardItem = None, manager: AbstractObjectManager = None, subtype: str = None, sourceLpyResource: object = None, clonedItem: QStandardItem = None, time: float = None) -> QStandardItem:
+    def createItem(self, parent: QStandardItem = None, 
+                    manager: AbstractObjectManager = None, 
+                    subtype: str = None, 
+                    sourceLpyResource: object = None, 
+                    clonedItem: QStandardItem = None, 
+                    time: float = None, 
+                    isGroupTimeline: bool = False,
+                    groupTimelineName: str = None,
+                    groupTimelineTimepoints: list = None) -> QStandardItem:
+
         item: QStandardItem = QStandardItem(parent)
         uuid = QUuid.createUuid()
+        nameString: str = None
+        color: QColor = None
+        self.store[uuid] = {}
         if clonedItem != None:
-            nameString = f"{clonedItem.data(Qt.DisplayRole)} #2"
+            if time != None:
+                nameString = f"{clonedItem.data(Qt.DisplayRole)}@" + "{:.3f}".format(time)
+            else:
+                nameString = f"{clonedItem.data(Qt.DisplayRole)} #2"
             item.setData(clonedItem.data(Qt.DecorationRole), Qt.DecorationRole)
-            self.store[uuid] = {}
             clonedLpyResource = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_LPYRESOURCE_STR]
             self.store[uuid][STORE_LPYRESOURCE_STR] = deepcopy(clonedLpyResource)
             self.store[uuid][STORE_MANAGER_STR] = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_MANAGER_STR]
-            self.store[uuid][STORE_TIME_STR] = time                
+            self.store[uuid][STORE_TIME_STR] = time
+            color = QColor(LPYRESOURCE_COLOR_STR)
         elif sourceLpyResource != None:
-            self.store[uuid] = {}
             self.store[uuid][STORE_LPYRESOURCE_STR] = deepcopy(sourceLpyResource)
             self.store[uuid][STORE_MANAGER_STR] = manager
             self.store[uuid][STORE_TIME_STR] = time
+            color = QColor(LPYRESOURCE_COLOR_STR)
+        elif isGroupTimeline:
+            self.store[uuid][STORE_TIMEPOINTS_STR] = groupTimelineTimepoints
+            nameString = f"Group-Timeline: {groupTimelineName}"
+            item.setData(groupTimelineName, QT_USERROLE_GROUPTIMELINE_NAME)
+            color = QColor(GROUPTIMELINE_COLOR_STR)
         elif manager != None: # it's a new lpyresource
-            self.store[uuid] = {}
             self.store[uuid][STORE_LPYRESOURCE_STR] = manager.createDefaultObject(subtype)
             self.store[uuid][STORE_MANAGER_STR] = manager
-            self.store[uuid][STORE_TIME_STR] = time
-        else:
-            self.store[uuid] = {}
-        
-
-        isLpyResource = self.store[uuid] != None
+            self.store[uuid][STORE_TIME_STR] = time    
+            nameString = f"Resource: {uuid.toString()}" 
+            color = QColor(LPYRESOURCE_COLOR_STR)
+        else:   
+            nameString = f"Group: {uuid.toString()}"
+            color = QColor(GROUP_COLOR_STR)
+    
+        isLpyResource = (STORE_LPYRESOURCE_STR in self.store[uuid].keys())
 
         # if manager=None then this node is simply a group for other nodes.
         item.setFlags(item.flags()  
-                        | Qt.ItemIsUserCheckable
-                        | Qt.ItemIsDragEnabled)
+                        & (~Qt.ItemIsDragEnabled)
+                        & (~Qt.ItemIsDropEnabled))
 
-        nameString = None
-        if clonedItem != None:
-            nameString = f"{clonedItem.data(Qt.DisplayRole)} #2"
-            item.setData(clonedItem.data(Qt.DecorationRole), Qt.DecorationRole)
-        
-        if isLpyResource:
-            nameString = nameString or f"Resource: {uuid.toString()}"
-            if time:
-                nameString = f"{nameString}@{time}"
-                item.setFlags(item.flags() & (~Qt.ItemIsDragEnabled))
-            item.setFlags(item.flags() & (~Qt.ItemIsDropEnabled))
+        if isLpyResource and (time == None):
+            item.setFlags(item.flags() | Qt.ItemIsDragEnabled)
+        elif (not isLpyResource):
+            item.setFlags(item.flags() | Qt.ItemIsDragEnabled)
+            if (not isGroupTimeline):
+                item.setFlags(item.flags() | Qt.ItemIsDropEnabled)
 
-        else:
-            nameString = nameString or f"Group: {uuid.toString()}"
-        
         item.setData(nameString, Qt.DisplayRole)
-        item.setData(uuid, QT_USERROLE_UUID )
-
+        item.setData(color, Qt.BackgroundColorRole)
+        item.setData(uuid, QT_USERROLE_UUID)
         if parent == None:
             parent = self.model.invisibleRootItem()
         parent.appendRow(item)
-
         return item
 
     def cloneItem(self, index: QModelIndex = None, parent: QStandardItem = None) -> QStandardItem:
@@ -251,28 +264,22 @@ class TreeController(QObject):
                 child = item.child(childRow)
                 self.cloneItem(index=child.index(), parent=clone)
 
+    # resource = dict{"manager": ..., "lpyresource": ...} if it's an LpyResource
+    # resource = dict{"timepoints": ... } if group-timeline
+    # resource = dict{} if group
     def isLpyResource(self, index: QModelIndex) -> bool:
         # index(-1, -1) is the root of the tree. It's actually an empty QStandardItem. Since it's empty it has no UUID so let's return false.
         if index == self.model.index(-1, -1):
             return False
-        item: QStandardItem = self.model.itemFromIndex(index)
-        uuid: QUuid = item.data(QT_USERROLE_UUID)
-        resource = self.store[uuid]
-        # resource = dict{"manager": ..., "lpyresource": ...} if it's an LpyResource
-        # resource = dict{} otherwis
-        return STORE_LPYRESOURCE_STR in resource.keys()
+        uuid: QUuid = index.data(QT_USERROLE_UUID)
+        return STORE_LPYRESOURCE_STR in self.store[uuid].keys()
 
     def isGroupTimeline(self, index: QModelIndex) -> bool:
         # index(-1, -1) is the root of the tree. It's actually an empty QStandardItem. Since it's empty it has no UUID so let's return false.
         if index == self.model.index(-1, -1):
             return False
-        item: QStandardItem = self.model.itemFromIndex(index)
-        uuid: QUuid = item.data(QT_USERROLE_UUID)
-        resource = self.store[uuid]
-        # resource = dict{"manager": ..., "lpyresource": ...} if it's an LpyResource
-        # resource = dict{"timepoints": ... } if group-timeline
-        # resource = dict{} if group
-        return STORE_TIMEPOINTS_STR in resource.keys()
+        uuid: QUuid = index.data(QT_USERROLE_UUID)
+        return STORE_TIMEPOINTS_STR in self.store[uuid].keys()
 
     def createGroupTimeline(self, index: QModelIndex = None) -> None:
         if not isinstance(index, QModelIndex):
@@ -284,7 +291,6 @@ class TreeController(QObject):
             parent = self.model.index(-1, -1) # root index
 
         timepoints: list = []
-           
         dialog: TimePointsDialog = TimePointsDialog(self.parent(), Qt.Window)
         dialog.okPressed.connect(lambda x: timepoints.append(x))
         dialog.exec() # blocking call
@@ -296,12 +302,10 @@ class TreeController(QObject):
         
         item: QStandardItem = self.model.itemFromIndex(index)
         parentItem: QStandardItem = self.model.itemFromIndex(parent)
-        groupTimelineItem: QStandardItem = self.createItem(parentItem, None, None, None, None)
+        groupTimelineItem: QStandardItem = self.createItem(parentItem, None, None, None, None, None, True, index.data(Qt.DisplayRole))
+        print(self.isGroupTimeline(self.model.indexFromItem(groupTimelineItem)))
+        
         # create timepoints:
-
-        uuid: QUuid = groupTimelineItem.data(QT_USERROLE_UUID)
-        print(self.store[uuid])
-        self.store[uuid][STORE_TIMEPOINTS_STR] = timepoints
 
         for time in timepoints:
             clonedItem: QStandardItem = self.createItem(groupTimelineItem, None, None, None, item, time)

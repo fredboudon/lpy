@@ -4,6 +4,8 @@ from PyQt5.QtCore import Qt
 
 QT_USERROLE_UUID = Qt.UserRole + 1
 QT_USERROLE_PIXMAP = Qt.UserRole + 2
+QT_USERROLE_GROUPTIMELINE_NAME = Qt.UserRole + 3
+
 STORE_MANAGER_STR = "manager"
 STORE_LPYRESOURCE_STR = "lpyresource"
 STORE_TIMEPOINTS_STR = "timepoints"
