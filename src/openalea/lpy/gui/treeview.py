@@ -209,6 +209,10 @@ class TreeView(QTreeView):
                 menuActions["Edit"].setData(clickedIndex)
                 menuActions["Edit"].triggered.connect(self.controller.editItemWindow)
 
+                menuActions["Create group-timeline from this resource"] = QAction('Create group-timeline from this resource',self)
+                menuActions["Create group-timeline from this resource"].setData(clickedIndex)
+                menuActions["Create group-timeline from this resource"].triggered.connect(self.controller.createGroupTimeline)
+
             menuActions["Clone"] = QAction("Clone", self)
             menuActions["Clone"].setData(clickedIndex)
             menuActions["Clone"].triggered.connect(self.controller.cloneItem) 

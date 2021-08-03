@@ -3,7 +3,7 @@ vue en liste:
 1. faire marcher le drag and drop.
 
 
-2.2. l'affichage par delegate (terminer la fonction sizeHint) # bon ça marche pas ouf avec l'item wrapping, on verra plus tard
+2.2. l'affichage par delegate
 
 2.3. duplication d'objets # fait, et même duplication de groupes
 2.4. widget d'édition de ressource dans le panel droit 
@@ -52,7 +52,6 @@ mécanique de timeline:
 - chaque group-timeline ne peut contenir qu'une seule ressource de base
 - chaque ressource créée dans un group-timeline est deepclonée N fois
 - un group-timeline peut être créé:
-  - soit dans le vide, et il faut définir quelle ressource est créée
   - soit à partir d'une ressource en dehors d'un group-timeline, et la ressource est dupliquée
   - soit en clonant un autre group-timeline
 - on peut éditer les timepoints dans un group-tliemine (CRUD)

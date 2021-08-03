@@ -15,7 +15,9 @@ from openalea.lpy.gui.renamedialog import RenameDialog
 from openalea.lpy.gui.objectmanagers import get_managers
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
-from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR
+from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR
+
+from openalea.lpy.gui.timepointsdialog import TimePointsDialog
 
 THUMBNAIL_HEIGHT=128
 THUMBNAIL_WIDTH=128
@@ -170,19 +172,30 @@ class TreeController(QObject):
             newItem = self.createItem(parent=lastitem, manager=None, subtype=None)
             lastitem = newItem
 
-    def createItem(self, parent: QStandardItem = None, manager: AbstractObjectManager = None, subtype: str = None, sourceLpyResource: object = None, clonedItem: QStandardItem = None) -> QStandardItem:
+    def createItem(self, parent: QStandardItem = None, manager: AbstractObjectManager = None, subtype: str = None, sourceLpyResource: object = None, clonedItem: QStandardItem = None, time: float = None) -> QStandardItem:
         item: QStandardItem = QStandardItem(parent)
         uuid = QUuid.createUuid()
-        if sourceLpyResource != None:
+        if clonedItem != None:
+            nameString = f"{clonedItem.data(Qt.DisplayRole)} #2"
+            item.setData(clonedItem.data(Qt.DecorationRole), Qt.DecorationRole)
+            self.store[uuid] = {}
+            clonedLpyResource = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_LPYRESOURCE_STR]
+            self.store[uuid][STORE_LPYRESOURCE_STR] = deepcopy(clonedLpyResource)
+            self.store[uuid][STORE_MANAGER_STR] = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_MANAGER_STR]
+            self.store[uuid][STORE_TIME_STR] = time                
+        elif sourceLpyResource != None:
             self.store[uuid] = {}
             self.store[uuid][STORE_LPYRESOURCE_STR] = deepcopy(sourceLpyResource)
-            self.store[uuid][STORE_MANAGER_STR] = manager   
+            self.store[uuid][STORE_MANAGER_STR] = manager
+            self.store[uuid][STORE_TIME_STR] = time
         elif manager != None: # it's a new lpyresource
             self.store[uuid] = {}
             self.store[uuid][STORE_LPYRESOURCE_STR] = manager.createDefaultObject(subtype)
             self.store[uuid][STORE_MANAGER_STR] = manager
+            self.store[uuid][STORE_TIME_STR] = time
         else:
-            self.store[uuid] = None
+            self.store[uuid] = {}
+        
 
         isLpyResource = self.store[uuid] != None
 
@@ -198,7 +211,11 @@ class TreeController(QObject):
         
         if isLpyResource:
             nameString = nameString or f"Resource: {uuid.toString()}"
+            if time:
+                nameString = f"{nameString}@{time}"
+                item.setFlags(item.flags() & (~Qt.ItemIsDragEnabled))
             item.setFlags(item.flags() & (~Qt.ItemIsDropEnabled))
+
         else:
             nameString = nameString or f"Group: {uuid.toString()}"
         
@@ -234,7 +251,6 @@ class TreeController(QObject):
                 child = item.child(childRow)
                 self.cloneItem(index=child.index(), parent=clone)
 
-
     def isLpyResource(self, index: QModelIndex) -> bool:
         # index(-1, -1) is the root of the tree. It's actually an empty QStandardItem. Since it's empty it has no UUID so let's return false.
         if index == self.model.index(-1, -1):
@@ -243,11 +259,57 @@ class TreeController(QObject):
         uuid: QUuid = item.data(QT_USERROLE_UUID)
         resource = self.store[uuid]
         # resource = dict{"manager": ..., "lpyresource": ...} if it's an LpyResource
-        # resource = None otherwise
-        return resource != None
+        # resource = dict{} otherwis
+        return STORE_LPYRESOURCE_STR in resource.keys()
+
+    def isGroupTimeline(self, index: QModelIndex) -> bool:
+        # index(-1, -1) is the root of the tree. It's actually an empty QStandardItem. Since it's empty it has no UUID so let's return false.
+        if index == self.model.index(-1, -1):
+            return False
+        item: QStandardItem = self.model.itemFromIndex(index)
+        uuid: QUuid = item.data(QT_USERROLE_UUID)
+        resource = self.store[uuid]
+        # resource = dict{"manager": ..., "lpyresource": ...} if it's an LpyResource
+        # resource = dict{"timepoints": ... } if group-timeline
+        # resource = dict{} if group
+        return STORE_TIMEPOINTS_STR in resource.keys()
+
+    def createGroupTimeline(self, index: QModelIndex = None) -> None:
+        if not isinstance(index, QModelIndex):
+            index: QModelIndex = QObject.sender(self).data()
+        if not self.isLpyResource(index):
+            return None
+        parent: QModelIndex = index.parent()
+        if parent == None:
+            parent = self.model.index(-1, -1) # root index
+
+        timepoints: list = []
+           
+        dialog: TimePointsDialog = TimePointsDialog(self.parent(), Qt.Window)
+        dialog.okPressed.connect(lambda x: timepoints.append(x))
+        dialog.exec() # blocking call
+
+        if (timepoints == None) or (len(timepoints[0]) == 0):
+            return
+        else:
+            timepoints = timepoints[0] # we added a list in a list
+        
+        item: QStandardItem = self.model.itemFromIndex(index)
+        parentItem: QStandardItem = self.model.itemFromIndex(parent)
+        groupTimelineItem: QStandardItem = self.createItem(parentItem, None, None, None, None)
+        # create timepoints:
+
+        uuid: QUuid = groupTimelineItem.data(QT_USERROLE_UUID)
+        print(self.store[uuid])
+        self.store[uuid][STORE_TIMEPOINTS_STR] = timepoints
+
+        for time in timepoints:
+            clonedItem: QStandardItem = self.createItem(groupTimelineItem, None, None, None, item, time)
+        self.deleteItem( [index] )
+        
+        
         
     def createEditorWidget(self, parent: QWidget, manager: AbstractObjectManager) -> ObjectEditorWidget:
-
         editorWidget = ObjectEditorWidget(parent, manager, self.store)
         editorWidget.valueChanged.connect(self.saveItem)
         return editorWidget
