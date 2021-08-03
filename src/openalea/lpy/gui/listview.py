@@ -59,7 +59,7 @@ class ListView(QListView):
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
-        self.setFlow(QListView.TopToBottom)
+        self.setFlow(QListView.LeftToRight)
         self.setWrapping(True)
 
         self.setResizeMode(QListView.Adjust)

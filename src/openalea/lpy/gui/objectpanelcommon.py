@@ -11,6 +11,8 @@ STORE_LPYRESOURCE_STR = "lpyresource"
 STORE_TIMEPOINTS_STR = "timepoints"
 STORE_TIME_STR = "time"
 
+def formatDecimals(value: int):
+    return "{:.3f}".format(value)
 
 def retrieveidinname(name,prefix):
     if name == prefix: return 1

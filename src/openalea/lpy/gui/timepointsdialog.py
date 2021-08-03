@@ -1,8 +1,10 @@
 
 from PyQt5.QtCore import QModelIndex, QObject, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import QAction, QListView, QMenu, QStyleOptionViewItem, QDialog, QDoubleSpinBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QStyledItemDelegate, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QAction, QListView, QMenu, QDialog, QDoubleSpinBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QStyledItemDelegate, QVBoxLayout, QWidget
 import typing
+
+from openalea.lpy.gui.objectpanelcommon import formatDecimals
 
 CONTENT_SPACING = 2
 BASE_DIALOG_SIZE = QSize(300, 400)
@@ -30,10 +32,11 @@ class TimePointsDialog(QDialog):
         self.timeSpinbox.setDecimals(3) # change number of decimals here too if needed
         self.createTimepointButton: QPushButton = QPushButton("Add time", self)
         self.createTimepointButton.pressed.connect(self.addTimepoint)
-
         addTimepointLayout.addWidget(self.timeSpinbox)
         addTimepointLayout.addWidget(self.createTimepointButton)
-        layout.addLayout(addTimepointLayout)
+        addTimepointWidget: QWidget = QWidget(self)
+        addTimepointWidget.setLayout(addTimepointLayout)
+        layout.addWidget(addTimepointWidget)
 
         self.pointListView: QListView = QListView(self)
         model = QStandardItemModel(self)
@@ -51,8 +54,10 @@ class TimePointsDialog(QDialog):
         cancelButton.pressed.connect(self.close)
         buttonsLayout.addWidget(cancelButton)
         buttonsLayout.addWidget(okButton)
+        buttonWidget: QWidget = QWidget(self)
+        buttonWidget.setLayout(buttonsLayout)
 
-        layout.addLayout(buttonsLayout)
+        layout.addWidget(buttonWidget)
 
         self.setLayout(layout)
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
@@ -80,7 +85,7 @@ class TimePointsDialog(QDialog):
     def addTimepoint(self):
         value: int = self.timeSpinbox.value()
         model: QStandardItemModel = self.pointListView.model()
-        valueString: str = "{:.3f}".format(value)
+        valueString: str = formatDecimals(value)
         isUnique: bool = True
         for i in range(0, model.rowCount()):
             # I'd rather compare strings than floats. Never. Compare. Floats.
@@ -98,10 +103,6 @@ class TimePointsDialog(QDialog):
         index: QModelIndex = data["index"]
         model: QStandardItemModel = self.pointListView.model()
         model.removeRow(index.row())
-
-    def exportTimepointsList(self):
-        pass
-
 
 def main():
     from PyQt5.QtWidgets import QApplication
