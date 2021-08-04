@@ -11,6 +11,12 @@ STORE_LPYRESOURCE_STR = "lpyresource"
 STORE_TIMEPOINTS_STR = "timepoints"
 STORE_TIME_STR = "time"
 
+TIME_NBR_DECIMALS = 3
+EPSILON = 1e-5
+# this EPSILON is used to compare floats.
+# we deem that "a == b" if "abs(a - b) < epsilon"
+# this is to avoid unsecure float comparison because of their memory representation.
+
 def formatDecimals(value: int):
     return "{:.3f}".format(value)
 

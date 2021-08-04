@@ -10,6 +10,8 @@ from math import sin, pi
 
 from openalea.lpy.gui.treecontroller import TreeController, GRID_HEIGHT_PX, GRID_WIDTH_PX
 
+from openalea.lpy.gui.treeview import TreeView
+
 from .abstractobjectmanager import AbstractObjectManager
 
 from .objectmanagers import get_managers
@@ -92,89 +94,13 @@ class ListView(QListView):
         if item.parent() != None:
             self.setRootIndex(item.parent().index())
 
+    
     ## ===== Context menu =====
-    def contextMenuRequest(self,position):
-
-        contextmenu = QMenu(self)
-        
-        parent = None
-        parentIndex = None # self.model().indexFromItem(parent)
-        newItemString = "New Item"
-        newGroupString = "New Group"
-        clickedIndex: QModelIndex = self.indexAt(position)
-        clickedItem: QStandardItem = self.model().itemFromIndex(clickedIndex)
-
-        if clickedItem != None:
-            parentIndex = clickedIndex
-            parent = clickedItem
-            newItemString = "New Child Item"
-            newGroupString = "New Child Group"
-
-        if clickedItem == None or (not self.controller.isLpyResource(clickedIndex)):
-            newGroupAction = QAction(newGroupString, self)
-            newGroupAction.triggered.connect(self.createItemFromMenu)
-            actionGroupData = {"manager": None, "subtype": None, "parent": parent}
-            newGroupAction.setData(actionGroupData)
-            contextmenu.addAction(newGroupAction)
-            
-            self.newItemMenu = QMenu(newItemString,self)
-            for mname, manager in self.plugins:
-                subtypes = manager.defaultObjectTypes()
-
-                if not subtypes is None and len(subtypes) == 1:
-                    mname = subtypes[0]
-                    subtypes = None
-                if subtypes is None:
-                    createAction = QAction(mname, self)
-                    createAction.triggered.connect(self.createItemFromMenu)
-                    createActionData = {"manager": manager, "subtype": None, "parent": parent}
-                    createAction.setData(createActionData)
-                    self.newItemMenu.addAction(createAction)
-                else:
-                    subtypeMenu = self.newItemMenu.addMenu(mname)
-                    for subtype in subtypes: 
-                        createAction = QAction(subtype, self)
-                        createAction.triggered.connect(self.createItemFromMenu)
-                        createActionDataWithSubtype = {"manager": manager, "subtype": subtype, "parent": parent}
-                        createAction.setData(createActionDataWithSubtype)
-                        subtypeMenu.addAction(createAction)
-
-            contextmenu.addMenu(self.newItemMenu)
-            contextmenu.addSeparator()
-
-        menuActions: dict = {}
-        if clickedItem != None: # if there's an item under your mouse, create the menu for it
-            f = QFont()
-            f.setBold(True)
-            if self.controller.isLpyResource(clickedIndex):
-                menuActions["Edit"] = QAction('Edit',self)
-                menuActions["Edit"].setFont(f)
-                menuActions["Edit"].setData(clickedIndex)
-                menuActions["Edit"].triggered.connect(self.controller.editItemWindow)
-
-            menuActions["Clone"] = QAction("Clone", self)
-            menuActions["Clone"].setData(clickedIndex)
-            menuActions["Clone"].triggered.connect(self.controller.cloneItem) 
-
-            menuActions["Delete"] = QAction('Delete',self)
-            menuActions["Delete"].setData(self.selectedIndexes())
-            menuActions["Delete"].triggered.connect(self.controller.deleteItem)
-
-            menuActions["Rename"] = QAction("Rename", self)
-            menuActions["Rename"].setData(clickedIndex)
-            menuActions["Rename"].triggered.connect(self.controller.renameItem)
-
-        #     menuActions["Get item tree from here"] = QAction("Get item tree from here", self)
-        #     menuActions["Get item tree from here"].setData(clickedIndex)
-        #     menuActions["Get item tree from here"].triggered.connect(self.getChildrenTreeDemo)
-        # else:
-        #     menuActions["Get item tree"] = QAction("Get item tree", self)
-        #     menuActions["Get item tree"].setData(self)
-        #     menuActions["Get item tree"].triggered.connect(self.getChildrenTreeDemo)
-
-        contextmenu.addActions(menuActions.values())
-
-        contextmenu.exec_(self.mapToGlobal(position))
+    ## the context menu is the same as in TreeView, it depends on the same rules from where you click.
+    ## additionally, "TreeView.contextMenuRequest" has "self" calls but only using self.controller, which is shared by the ListView too.
+    ## so we can avoid duplication and invoke the TreeView menu from here.
+    def contextMenuRequest(self, position):
+        TreeView.contextMenuRequest(self, position)
 
 
 def main():

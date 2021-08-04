@@ -4,10 +4,11 @@ from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QAction, QListView, QMenu, QDialog, QDoubleSpinBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QStyledItemDelegate, QVBoxLayout, QWidget
 import typing
 
-from openalea.lpy.gui.objectpanelcommon import formatDecimals
+from openalea.lpy.gui.objectpanelcommon import TIME_NBR_DECIMALS, formatDecimals
 
 CONTENT_SPACING = 2
 BASE_DIALOG_SIZE = QSize(300, 400)
+QT_USERROLE_TIME = Qt.UserRole
 
 class TimePointsDialog(QDialog):
 
@@ -16,6 +17,8 @@ class TimePointsDialog(QDialog):
     pointListView: QWidget = None
     timepoints: list[float] = None
     okPressed: pyqtSignal = pyqtSignal(list)
+    timepointAdded: pyqtSignal = pyqtSignal(float)
+    timepointRemoved: pyqtSignal = pyqtSignal(float)
 
     def __init__(self, parent: typing.Optional[QWidget], flags: typing.Union[Qt.WindowFlags, Qt.WindowType]) -> None:
         super().__init__(parent=parent, flags=flags)
@@ -29,7 +32,7 @@ class TimePointsDialog(QDialog):
         self.timeSpinbox.setMinimum(0.0)
         self.timeSpinbox.setMaximum(1.0)
         self.timeSpinbox.setSingleStep(0.01)
-        self.timeSpinbox.setDecimals(3) # change number of decimals here too if needed
+        self.timeSpinbox.setDecimals(TIME_NBR_DECIMALS) # change number of decimals here too if needed
         self.createTimepointButton: QPushButton = QPushButton("Add time", self)
         self.createTimepointButton.pressed.connect(self.addTimepoint)
         addTimepointLayout.addWidget(self.timeSpinbox)
@@ -40,7 +43,7 @@ class TimePointsDialog(QDialog):
 
         self.pointListView: QListView = QListView(self)
         model = QStandardItemModel(self)
-        model.setSortRole(Qt.UserRole)
+        model.setSortRole(QT_USERROLE_TIME)
         self.pointListView.setModel(model)
         ## add custom context menu.
         self.pointListView.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -62,12 +65,19 @@ class TimePointsDialog(QDialog):
         self.setLayout(layout)
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
 
+    def setTimepoints(self, timepoints: list[int]):
+        self.timepoints = timepoints
+        model: QStandardItemModel = self.pointListView.model()
+        for i in range(0, model.rowCount()):
+            model.removeRow(i)
+        for i in timepoints:
+            self.addTimepoint(i)
 
     def ok(self):
         model: QStandardItemModel = self.pointListView.model()
         res: list = []
         for i in range(0, model.rowCount()):
-            res.append(model.index(i, 0).data(Qt.UserRole))
+            res.append(model.index(i, 0).data(QT_USERROLE_TIME))
         self.okPressed.emit(res)
         self.close()
 
@@ -77,13 +87,14 @@ class TimePointsDialog(QDialog):
         if clickedIndex != None :
             deleteAction = QAction("Delete", self)
             deleteAction.triggered.connect(self.deleteTimepoint)
-            deleteActionData = {"index": clickedIndex}
+            deleteActionData = {"index": clickedIndex, "value": clickedIndex.data(QT_USERROLE_TIME)}
             deleteAction.setData(deleteActionData)
             contextmenu.addAction(deleteAction)
             contextmenu.exec_(self.pointListView.mapToGlobal(position))
 
-    def addTimepoint(self):
-        value: int = self.timeSpinbox.value()
+    def addTimepoint(self, value = None):
+        if not value:
+            value: int = self.timeSpinbox.value()
         model: QStandardItemModel = self.pointListView.model()
         valueString: str = formatDecimals(value)
         isUnique: bool = True
@@ -94,13 +105,16 @@ class TimePointsDialog(QDialog):
             return
         pointItem: QStandardItem = QStandardItem()
         pointItem.setData(valueString, Qt.DisplayRole) # change number of decimals here too if needed
-        pointItem.setData(value, Qt.UserRole)
+        pointItem.setData(value, QT_USERROLE_TIME)
         model.appendRow(pointItem)
         model.sort(0) # column = 0 (only one column in QListView)
+        self.timepointAdded.emit(value)
 
     def deleteTimepoint(self):
         data: dict = QObject.sender(self).data()
         index: QModelIndex = data["index"]
+        value: float = data["value"]
+        self.timepointRemoved.emit(value)
         model: QStandardItemModel = self.pointListView.model()
         model.removeRow(index.row())
 

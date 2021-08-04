@@ -15,7 +15,7 @@ from openalea.lpy.gui.renamedialog import RenameDialog
 from openalea.lpy.gui.objectmanagers import get_managers
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
-from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_GROUPTIMELINE_NAME, QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR, formatDecimals
+from openalea.lpy.gui.objectpanelcommon import EPSILON, QT_USERROLE_GROUPTIMELINE_NAME, QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR, formatDecimals
 
 from openalea.lpy.gui.timepointsdialog import TimePointsDialog
 
@@ -145,6 +145,7 @@ class TreeController(QObject):
     def __init__(self, parent: QWidget, model: QStandardItemModel, store: dict[object]) -> None:
         super().__init__(parent)
         self.model = model
+        self.model.setSortRole(Qt.DisplayRole)
         self.store = store
         self.treeDelegate: TreeDelegate = TreeDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
         self.treeDelegate.createEditorCalled.connect(self.editItemWindow)
@@ -190,15 +191,20 @@ class TreeController(QObject):
         self.store[uuid] = {}
         if clonedItem != None:
             if time != None:
-                nameString = f"{clonedItem.data(Qt.DisplayRole)}@" + formatDecimals(time)
+                nameString = f"{parent.data(QT_USERROLE_GROUPTIMELINE_NAME)}@" + formatDecimals(time)
             else:
                 nameString = f"{clonedItem.data(Qt.DisplayRole)} #2"
             item.setData(clonedItem.data(Qt.DecorationRole), Qt.DecorationRole)
-            clonedLpyResource = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_LPYRESOURCE_STR]
-            self.store[uuid][STORE_LPYRESOURCE_STR] = deepcopy(clonedLpyResource)
-            self.store[uuid][STORE_MANAGER_STR] = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_MANAGER_STR]
-            self.store[uuid][STORE_TIME_STR] = time
-            color = QColor(LPYRESOURCE_COLOR_STR)
+            if isGroupTimeline:
+                self.store[uuid][STORE_TIMEPOINTS_STR] = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_TIMEPOINTS_STR]
+                color = QColor(GROUPTIMELINE_COLOR_STR)
+            else:
+                clonedLpyResource = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_LPYRESOURCE_STR]
+                self.store[uuid][STORE_LPYRESOURCE_STR] = deepcopy(clonedLpyResource)
+                self.store[uuid][STORE_MANAGER_STR] = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_MANAGER_STR]
+                self.store[uuid][STORE_TIME_STR] = time
+                item.setData(clonedItem.data(QT_USERROLE_PIXMAP), QT_USERROLE_PIXMAP)
+                color = QColor(LPYRESOURCE_COLOR_STR)
         elif sourceLpyResource != None:
             self.store[uuid][STORE_LPYRESOURCE_STR] = deepcopy(sourceLpyResource)
             self.store[uuid][STORE_MANAGER_STR] = manager
@@ -256,6 +262,15 @@ class TreeController(QObject):
             if parent == None:
                 parent = item.parent()
             self.createItem(parent=parent, manager=manager, sourceLpyResource=sourceLpyResource, clonedItem=item)
+        elif self.isGroupTimeline(index):
+            item: QStandardItem = self.model.itemFromIndex(index)
+            uuid: QUuid = item.data(QT_USERROLE_UUID)
+            if parent == None:
+                parent = item.parent()
+            clone: QStandardItem = self.createItem(parent = parent, clonedItem=item, isGroupTimeline=True)
+            for childRow in range(item.rowCount()):
+                child = item.child(childRow)
+                self.cloneItem(index=child.index(), parent=clone)
         else:
             item: QStandardItem = self.model.itemFromIndex(index)
             uuid: QUuid = item.data(QT_USERROLE_UUID)
@@ -281,6 +296,7 @@ class TreeController(QObject):
         if index == self.model.index(-1, -1):
             return False
         uuid: QUuid = index.data(QT_USERROLE_UUID)
+        print(self.store[uuid])
         return STORE_TIMEPOINTS_STR in self.store[uuid].keys()
     
     def isLpyResourceInTimeline(self, index: QModelIndex) -> bool:
@@ -302,25 +318,70 @@ class TreeController(QObject):
 
         timepoints: list = []
         dialog: TimePointsDialog = TimePointsDialog(self.parent(), Qt.Window)
-        dialog.okPressed.connect(lambda x: timepoints.append(x))
+        dialog.setTimepoints([0.1, 0.3, 0.7]) # some example points 
+        dialog.okPressed.connect(lambda x: timepoints.extend(x)) #it's an ugly way to mutate an object outside of the lambda, but it works.
         dialog.exec() # blocking call
 
-        if (len(timepoints) == 0) or (len(timepoints[0]) == 0):
+        if (len(timepoints) == 0):
+            print("not timepoint: aborting...")
             return
-        else:
-            timepoints = timepoints[0] # we added a list in a list
         
         item: QStandardItem = self.model.itemFromIndex(index)
         parentItem: QStandardItem = self.model.itemFromIndex(parent)
-        groupTimelineItem: QStandardItem = self.createItem(parentItem, None, None, None, None, None, True, index.data(Qt.DisplayRole))
+        groupTimelineItem: QStandardItem = self.createItem(parentItem, None, None, None, None, None, True, index.data(Qt.DisplayRole), timepoints)
         
         # create timepoints:
         for time in timepoints:
             clonedItem: QStandardItem = self.createItem(groupTimelineItem, None, None, None, item, time)
         self.deleteItem( [index] )
         
+    def editTimepoints(self, index: QModelIndex = None) -> QWidget:
+        if not isinstance(index, QModelIndex):
+            index: QModelIndex = QObject.sender(self).data()
+        # index: QModelIndex of the Group-Timeline.
+
+        def insertTimedResource(time: float):
+            # find the closest item already existing:
+            prevSibling: QModelIndex = index.child(0, 0)
+            nextSibling: QModelIndex = index.child(0, 0)
+            for i in range(0, self.model.rowCount(index)):
+                nextSibling: QModelIndex = index.child(i, 0)
+                nextSiblingUuid: QUuid = nextSibling.data(QT_USERROLE_UUID)
+                nextSiblingTime: float = self.store[nextSiblingUuid][STORE_TIME_STR]
+                if nextSiblingTime > time:
+                    break
+                prevSibling = nextSibling
+            closestItem: QStandardItem = self.model.itemFromIndex(prevSibling)
+            parentItem: QStandardItem = self.model.itemFromIndex(index)
+            newItem: QStandardItem = self.createItem(parentItem, None, None, None, closestItem, time)
+            # sortRole is set to alphabedical (Qt.DisplayRole)
+            parentItem.sortChildren(0)
+
+
+        def removeTimedResource(time: float):
+            indexToDelete: QModelIndex = None
+            for i in range(0, self.model.rowCount(index)):
+                siblingsUuid: QUuid = index.child(i, 0).data(QT_USERROLE_UUID)
+                siblingTime: float = self.store[siblingsUuid][STORE_TIME_STR]
+                
+                if abs(siblingTime - time) < EPSILON: # remember guys: unless you have an Epsilon, never. compare. floats.
+                    indexToDelete = index.child(i, 0)
+                    break
+            self.model.removeRow(indexToDelete.row(), index)
         
-        
+        def updateTimepoints(timepointlist: list[float]):
+            uuid: QUuid = index.data(QT_USERROLE_UUID)
+            self.store[uuid][STORE_TIMEPOINTS_STR] = timepointlist
+
+        uuid: QUuid = index.data(QT_USERROLE_UUID)
+        timepoints: list[float] = self.store[uuid][STORE_TIMEPOINTS_STR]
+        dialog: TimePointsDialog = TimePointsDialog(self.parent(), Qt.Window)
+        dialog.setTimepoints(timepoints) # some example points
+        dialog.timepointAdded.connect(insertTimedResource)
+        dialog.timepointRemoved.connect(removeTimedResource)
+        dialog.okPressed.connect(updateTimepoints)
+        dialog.exec() # blocking call
+
     def createEditorWidget(self, parent: QWidget, manager: AbstractObjectManager) -> ObjectEditorWidget:
         editorWidget = ObjectEditorWidget(parent, manager, self.store)
         editorWidget.valueChanged.connect(self.saveItem)
@@ -408,9 +469,9 @@ class TreeController(QObject):
                 for i in range(0, numberOfSiblings): # loop across siblings under same parent.
                     sibling: QModelIndex = index.sibling(i, 0)
                     siblingUuid: QUuid = sibling.data(QT_USERROLE_UUID)
-                    epsilon: int = 1e-4
+                    
                     # You only compare floats regarding to a given epsilon. 
-                    if self.store[siblingUuid][STORE_TIME_STR] - self.store[uuid][STORE_TIME_STR] > epsilon:
+                    if self.store[siblingUuid][STORE_TIME_STR] - self.store[uuid][STORE_TIME_STR] > EPSILON:
                         self.store[siblingUuid][STORE_LPYRESOURCE_STR] = lpyresource
                         model.setData(sibling, pixmap, QT_USERROLE_PIXMAP)
                         print("updated timepoint" + formatDecimals(self.store[siblingUuid][STORE_TIME_STR]))

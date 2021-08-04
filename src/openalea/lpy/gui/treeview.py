@@ -150,7 +150,7 @@ class TreeView(QTreeView):
             self.setExpanded(item.parent().index(), True)    
 
     ## ===== Context menu =====
-    def contextMenuRequest(self,position):
+    def contextMenuRequest(self, position):
 
         contextmenu = QMenu(self)
         
@@ -159,22 +159,30 @@ class TreeView(QTreeView):
         newItemString = "New Item"
         newGroupString = "New Group"
         clickedIndex: QModelIndex = self.indexAt(position)
-        clickedItem: QStandardItem = self.model().itemFromIndex(clickedIndex)
+        clickedItem: QStandardItem = self.controller.model.itemFromIndex(clickedIndex)
+        parentIndex: QModelIndex = clickedIndex.parent()
+        if clickedItem != None:
+            parentItem: QStandardItem = clickedItem.parent()
+        else:
+            parentItem: QStandardItem = self.controller.model.invisibleRootItem()
 
         if clickedItem != None:
-            parentIndex = clickedIndex
-            parent = clickedItem
             newItemString = "New Child Item"
             newGroupString = "New Child Group"
+        
+        isClickingOnGroupOrBackground = (clickedItem == None) or ((not self.controller.isLpyResource(clickedIndex)) and (not self.controller.isGroupTimeline(clickedIndex)))
+        isClickingOnSingleResource = (self.controller.isLpyResource(clickedIndex) and not self.controller.isGroupTimeline(parentIndex))
+        isClickingOnGroupTimeline = (self.controller.isGroupTimeline(clickedIndex))
+        isClickingOnResourceTimeline = (self.controller.isLpyResource(clickedIndex) and self.controller.isGroupTimeline(parentIndex))
+        selectedActions: list = []
 
-        if clickedItem == None or (not self.controller.isLpyResource(clickedIndex)):
+        if isClickingOnGroupOrBackground:
             newGroupAction = QAction(newGroupString, self)
             newGroupAction.triggered.connect(self.createItemFromMenu)
-            actionGroupData = {"manager": None, "subtype": None, "parent": parent}
+            actionGroupData = {"manager": None, "subtype": None, "parent": clickedItem}
             newGroupAction.setData(actionGroupData)
             contextmenu.addAction(newGroupAction)
-            
-            self.newItemMenu = QMenu(newItemString,self)
+            newItemMenu = QMenu(newItemString,self)
             for mname, manager in self.plugins:
                 subtypes = manager.defaultObjectTypes()
 
@@ -184,58 +192,59 @@ class TreeView(QTreeView):
                 if subtypes is None:
                     createAction = QAction(mname, self)
                     createAction.triggered.connect(self.createItemFromMenu)
-                    createActionData = {"manager": manager, "subtype": None, "parent": parent}
+                    createActionData = {"manager": manager, "subtype": None, "parent": clickedItem}
                     createAction.setData(createActionData)
-                    self.newItemMenu.addAction(createAction)
+                    newItemMenu.addAction(createAction)
                 else:
-                    subtypeMenu = self.newItemMenu.addMenu(mname)
+                    subtypeMenu = newItemMenu.addMenu(mname)
                     for subtype in subtypes: 
                         createAction = QAction(subtype, self)
                         createAction.triggered.connect(self.createItemFromMenu)
-                        createActionDataWithSubtype = {"manager": manager, "subtype": subtype, "parent": parent}
+                        createActionDataWithSubtype = {"manager": manager, "subtype": subtype, "parent": parentItem}
                         createAction.setData(createActionDataWithSubtype)
                         subtypeMenu.addAction(createAction)
-
-            contextmenu.addMenu(self.newItemMenu)
+            
+            contextmenu.addMenu(newItemMenu)
             contextmenu.addSeparator()
 
+        
+        f = QFont()
+        f.setBold(True)
         menuActions: dict = {}
-        if clickedItem != None: # if there's an item under your mouse, create the menu for it
-            f = QFont()
-            f.setBold(True)
-            if self.controller.isLpyResource(clickedIndex):
-                menuActions["Edit"] = QAction('Edit',self)
-                menuActions["Edit"].setFont(f)
-                menuActions["Edit"].setData(clickedIndex)
-                menuActions["Edit"].triggered.connect(self.controller.editItemWindow)
+        # these are all possible actions. We'll select only the ones we're interested in just after.
+        menuActions["Edit"] = QAction('Edit',self)
+        menuActions["Edit"].setFont(f)
+        menuActions["Edit"].setData(clickedIndex)
+        menuActions["Edit"].triggered.connect(self.controller.editItemWindow)
+        menuActions["Create group-timeline from this resource"] = QAction('Create group-timeline from this resource',self)
+        menuActions["Create group-timeline from this resource"].setData(clickedIndex)
+        menuActions["Create group-timeline from this resource"].triggered.connect(self.controller.createGroupTimeline)
+        menuActions["Edit timepoints"] = QAction('Edit timepoints',self)
+        menuActions["Edit timepoints"].setFont(f)
+        menuActions["Edit timepoints"].setData(clickedIndex)
+        menuActions["Edit timepoints"].triggered.connect(self.controller.editTimepoints)
+        menuActions["Clone"] = QAction("Clone", self)
+        menuActions["Clone"].setData(clickedIndex)
+        menuActions["Clone"].triggered.connect(self.controller.cloneItem) 
+        menuActions["Delete"] = QAction('Delete',self)
+        menuActions["Delete"].setData(self.selectedIndexes())
+        menuActions["Delete"].triggered.connect(self.controller.deleteItem)
+        menuActions["Rename"] = QAction("Rename", self)
+        menuActions["Rename"].setData(clickedIndex)
+        menuActions["Rename"].triggered.connect(self.controller.renameItem)
+        menuActions["Edit the group-timeline timepoints"] = QAction("Edit the group-timeline timepoints", self)
+        menuActions["Edit the group-timeline timepoints"].setData(parentIndex)
+        menuActions["Edit the group-timeline timepoints"].triggered.connect(self.controller.editTimepoints)
+        selectedActions: list = []
 
-                menuActions["Create group-timeline from this resource"] = QAction('Create group-timeline from this resource',self)
-                menuActions["Create group-timeline from this resource"].setData(clickedIndex)
-                menuActions["Create group-timeline from this resource"].triggered.connect(self.controller.createGroupTimeline)
+        if isClickingOnSingleResource: # if there's an item under your mouse, create the menu for it
+            selectedActions = selectedActions + [menuActions["Edit"], menuActions["Clone"], menuActions["Create group-timeline from this resource"], menuActions["Rename"], menuActions["Delete"]]
+        elif isClickingOnGroupTimeline:
+            selectedActions = selectedActions + [menuActions["Edit timepoints"], menuActions["Clone"], menuActions["Rename"], menuActions["Delete"]]
+        elif isClickingOnResourceTimeline:
+            selectedActions = selectedActions + [menuActions["Edit the group-timeline timepoints"]]
 
-            menuActions["Clone"] = QAction("Clone", self)
-            menuActions["Clone"].setData(clickedIndex)
-            menuActions["Clone"].triggered.connect(self.controller.cloneItem) 
-
-            menuActions["Delete"] = QAction('Delete',self)
-            menuActions["Delete"].setData(self.selectedIndexes())
-            menuActions["Delete"].triggered.connect(self.controller.deleteItem)
-
-            menuActions["Rename"] = QAction("Rename", self)
-            menuActions["Rename"].setData(clickedIndex)
-            menuActions["Rename"].triggered.connect(self.controller.renameItem)
-
-  
-
-            menuActions["Get item tree from here"] = QAction("Get item tree from here", self)
-            menuActions["Get item tree from here"].setData(clickedIndex)
-            menuActions["Get item tree from here"].triggered.connect(self.getChildrenTreeDemo)
-        else:
-            menuActions["Get item tree"] = QAction("Get item tree", self)
-            menuActions["Get item tree"].setData(self)
-            menuActions["Get item tree"].triggered.connect(self.getChildrenTreeDemo)
-
-        contextmenu.addActions(menuActions.values())
+        contextmenu.addActions(selectedActions)
 
         contextmenu.exec_(self.mapToGlobal(position))
 
