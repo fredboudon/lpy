@@ -238,8 +238,11 @@ class TreeView(QTreeView):
         menuActions["Rename the group-timeline"] = QAction("Rename the group-timeline", self)
         menuActions["Rename the group-timeline"].setData(parentIndex)
         menuActions["Rename the group-timeline"].triggered.connect(self.controller.renameItem)
+        menuActions["Export store"] = QAction("Export store", self)
+        menuActions["Export store"].triggered.connect(self.controller.exportStore)
 
         selectedActions: list = []
+        selectedActions.append(menuActions["Export store"])
 
         if isClickingOnSingleResource: # if there's an item under your mouse, create the menu for it
             selectedActions = selectedActions + [menuActions["Edit"], menuActions["Clone"], menuActions["Create group-timeline from this resource"], menuActions["Rename"], menuActions["Delete"]]

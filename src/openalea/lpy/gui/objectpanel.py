@@ -467,8 +467,6 @@ def main():
     qapp = QApplication([])
     m = LpyObjectPanelDock(None,'TestPanel')
     m.controller.createExampleObjects()
-    # pp = pprint.PrettyPrinter(indent=2)
-    # pp.pprint(m.objectpanel.getObjects())
     m.show()
     qapp.exec_()
 
