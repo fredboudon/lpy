@@ -235,6 +235,10 @@ class TreeView(QTreeView):
         menuActions["Edit the group-timeline timepoints"] = QAction("Edit the group-timeline timepoints", self)
         menuActions["Edit the group-timeline timepoints"].setData(parentIndex)
         menuActions["Edit the group-timeline timepoints"].triggered.connect(self.controller.editTimepoints)
+        menuActions["Rename the group-timeline"] = QAction("Rename the group-timeline", self)
+        menuActions["Rename the group-timeline"].setData(parentIndex)
+        menuActions["Rename the group-timeline"].triggered.connect(self.controller.renameItem)
+
         selectedActions: list = []
 
         if isClickingOnSingleResource: # if there's an item under your mouse, create the menu for it
@@ -242,7 +246,7 @@ class TreeView(QTreeView):
         elif isClickingOnGroupTimeline:
             selectedActions = selectedActions + [menuActions["Edit timepoints"], menuActions["Clone"], menuActions["Rename"], menuActions["Delete"]]
         elif isClickingOnResourceTimeline:
-            selectedActions = selectedActions + [menuActions["Edit the group-timeline timepoints"]]
+            selectedActions = selectedActions + [menuActions["Edit the group-timeline timepoints"], menuActions["Rename the group-timeline"]]
 
         contextmenu.addActions(selectedActions)
 

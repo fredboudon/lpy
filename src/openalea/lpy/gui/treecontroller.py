@@ -197,6 +197,7 @@ class TreeController(QObject):
             item.setData(clonedItem.data(Qt.DecorationRole), Qt.DecorationRole)
             if isGroupTimeline:
                 self.store[uuid][STORE_TIMEPOINTS_STR] = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_TIMEPOINTS_STR]
+                item.setData(clonedItem.data(QT_USERROLE_GROUPTIMELINE_NAME), QT_USERROLE_GROUPTIMELINE_NAME)
                 color = QColor(GROUPTIMELINE_COLOR_STR)
             else:
                 clonedLpyResource = self.store[clonedItem.data(QT_USERROLE_UUID)][STORE_LPYRESOURCE_STR]
@@ -259,15 +260,18 @@ class TreeController(QObject):
             resource: dict = self.store[uuid]
             manager: AbstractObjectManager = resource[STORE_MANAGER_STR]
             sourceLpyResource: object = resource[STORE_LPYRESOURCE_STR]
+            time: float = resource[STORE_TIME_STR]
             if parent == None:
                 parent = item.parent()
-            self.createItem(parent=parent, manager=manager, sourceLpyResource=sourceLpyResource, clonedItem=item)
+            self.createItem(parent=parent, manager=manager, sourceLpyResource=sourceLpyResource, clonedItem=item, time=time)
         elif self.isGroupTimeline(index):
             item: QStandardItem = self.model.itemFromIndex(index)
             uuid: QUuid = item.data(QT_USERROLE_UUID)
             if parent == None:
                 parent = item.parent()
-            clone: QStandardItem = self.createItem(parent = parent, clonedItem=item, isGroupTimeline=True)
+            timepoints = self.store[uuid][STORE_TIMEPOINTS_STR]
+            groupeTimelineName = index.data(QT_USERROLE_GROUPTIMELINE_NAME)
+            clone: QStandardItem = self.createItem(parent = parent, clonedItem=item, isGroupTimeline=True, groupTimelineName=groupeTimelineName, groupTimelineTimepoints=timepoints)
             for childRow in range(item.rowCount()):
                 child = item.child(childRow)
                 self.cloneItem(index=child.index(), parent=clone)
@@ -382,6 +386,12 @@ class TreeController(QObject):
         dialog.okPressed.connect(updateTimepoints)
         dialog.exec() # blocking call
 
+    def renameGroupTimeline(self, index: QModelIndex = None) -> QWidget:
+        if not isinstance(index, QModelIndex):
+            index: QModelIndex = QObject.sender(self).data()
+        # index: QModelIndex of the Group-Timeline.
+
+
     def createEditorWidget(self, parent: QWidget, manager: AbstractObjectManager) -> ObjectEditorWidget:
         editorWidget = ObjectEditorWidget(parent, manager, self.store)
         editorWidget.valueChanged.connect(self.saveItem)
@@ -428,13 +438,33 @@ class TreeController(QObject):
         if not isinstance(index, QModelIndex):
             index: QModelIndex = QObject.sender(self).data()
 
-        name = f"{index.data(Qt.DisplayRole)}"
-        dialog = RenameDialog(self.parent()) # flag "Qt.Window" will decorate QDialog with resize buttons. Handy.
+        def saveName(editor: QWidget):
+            data: str = editor.textValue()
+            self.model.setData(index, data, Qt.DisplayRole)
+
+        def saveGroupTimelineName(editor: QWidget):
+            data: str = editor.textValue()
+            self.model.setData(index, data, QT_USERROLE_GROUPTIMELINE_NAME)
+            self.model.setData(index, f"Group-Timeline: {data}", Qt.DisplayRole)
+            for i in range(0, self.model.rowCount(index)):
+                child: QModelIndex = index.child(i, 0)
+                uuid: QUuid = child.data(QT_USERROLE_UUID)
+                time: float = self.store[uuid][STORE_TIME_STR]
+                self.model.setData(child, f"{data}@" + formatDecimals(time) ,Qt.DisplayRole)
+
+        if self.isGroupTimeline(index):
+            name = f"{index.data(QT_USERROLE_GROUPTIMELINE_NAME)}"
+        else:
+            name = f"{index.data(Qt.DisplayRole)}"
+        dialog = RenameDialog(self.parent())
         dialog.setModelIndex(index)
         dialog.setTextValue(name)
         dialog.setWindowTitle(f"Rename: {name}")
         dialog.setOriginalLabelText(f"Rename: {name}")
-        dialog.valueChanged.connect(self.saveItem)
+        if self.isGroupTimeline(index):
+            dialog.valueChanged.connect(saveGroupTimelineName)
+        else:
+            dialog.valueChanged.connect(saveName)
         dialog.exec_()
         return dialog
 
@@ -475,9 +505,3 @@ class TreeController(QObject):
                         self.store[siblingUuid][STORE_LPYRESOURCE_STR] = lpyresource
                         model.setData(sibling, pixmap, QT_USERROLE_PIXMAP)
                         print("updated timepoint" + formatDecimals(self.store[siblingUuid][STORE_TIME_STR]))
-
-
-        elif isinstance(editor, QInputDialog):
-            data = editor.textValue()
-            print(f"setting model data: {data}")
-            self.model.setData(index, data, Qt.DisplayRole)
