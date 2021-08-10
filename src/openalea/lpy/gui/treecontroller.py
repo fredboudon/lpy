@@ -15,7 +15,7 @@ from openalea.lpy.gui.renamedialog import RenameDialog
 from openalea.lpy.gui.objectmanagers import get_managers
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
-from openalea.lpy.gui.objectpanelcommon import EPSILON, QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR, formatDecimals
+from openalea.lpy.gui.objectpanelcommon import EPSILON, QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR, formatDecimals, checkNameUnique
 
 from openalea.lpy.gui.timepointsdialog import TimePointsDialog
 
@@ -184,7 +184,8 @@ class TreeController(QObject):
         nameString: str = None
         color: QColor = None
         self.store[uuid] = {}
-        suffix: str = " #2"
+        suffixNbr: int = 0
+        suffix: str = f" #{suffixNbr}"
         if clonedItem != None:
             if time != None:
                 nameString = f"{parent.data(Qt.DisplayRole)}@" + formatDecimals(time)
@@ -224,14 +225,14 @@ class TreeController(QObject):
         isLpyResource = (STORE_LPYRESOURCE_STR in self.store[uuid].keys())
 
         #backup strategy for name
-        uuidString = None
+        uuidString: str = None
         if isLpyResource:
             uuidString = f"Resource: {uuid.toString()}"
         else:
             uuidString = f"Group: {uuid.toString()}"
         if nameString == None:
             nameString = uuidString
-        
+
         item.setData(nameString, Qt.DisplayRole)
         item.setData(color, Qt.BackgroundColorRole)
         item.setData(uuid, QT_USERROLE_UUID)
@@ -249,9 +250,21 @@ class TreeController(QObject):
                 item.setFlags(item.flags() | Qt.ItemIsDropEnabled)
 
 
+
         if parent == None:
             parent = self.model.invisibleRootItem()
         parent.appendRow(item)
+
+        # let's do a sanity check for names, just to make sure you're not shooting yourself in the foot.
+        if not checkNameUnique(self.model, self.model.indexFromItem(item), nameString):
+            origName = nameString
+            while not checkNameUnique(self.model, self.model.indexFromItem(item), nameString):
+                suffixNbr = suffixNbr + 1
+                suffix = f" #{suffixNbr}"
+                print(f"{nameString} not unique, trying with {origName + suffix}")
+                nameString = origName + suffix
+            item.setData(nameString, Qt.DisplayRole)
+        
         if nameString == uuidString:
             self.renameItem(self.model.indexFromItem(item))
         return item
@@ -396,12 +409,6 @@ class TreeController(QObject):
         dialog.okPressed.connect(updateTimepoints)
         dialog.exec() # blocking call
 
-    def renameGroupTimeline(self, index: QModelIndex = None) -> QWidget:
-        if not isinstance(index, QModelIndex):
-            index: QModelIndex = QObject.sender(self).data()
-        # index: QModelIndex of the Group-Timeline.
-
-
     def createEditorWidget(self, parent: QWidget, manager: AbstractObjectManager) -> ObjectEditorWidget:
         editorWidget = ObjectEditorWidget(parent, manager, self.store)
         editorWidget.valueChanged.connect(self.saveItem)
@@ -518,7 +525,6 @@ class TreeController(QObject):
         def getRecursive(index: QModelIndex, d: dict):
             uuid = index.data(QT_USERROLE_UUID)
             name = index.data(Qt.DisplayRole)
-            name = name.replace("{", "").replace("}", "").replace(":", "")
             d[name] = self.store[uuid]
             for i in range(0, self.model.rowCount(index)):
                 childIndex: QModelIndex = self.model.index(i, 0)
@@ -531,7 +537,6 @@ class TreeController(QObject):
             index: QModelIndex = self.model.index(i, 0)
             uuid = index.data(QT_USERROLE_UUID)
             name: str = index.data(Qt.DisplayRole)
-            name = name.replace("{", "").replace("}", "").replace(":", "")
             res = getRecursive(index, res)
 
         with open('out.json', 'w') as outfile:
