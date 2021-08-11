@@ -1,22 +1,25 @@
 
 from PyQt5.QtCore import QModelIndex, QObject, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import QAction, QListView, QMenu, QDialog, QDoubleSpinBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QStyledItemDelegate, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QAction, QCheckBox, QListView, QMenu, QDialog, QDoubleSpinBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QStyledItemDelegate, QVBoxLayout, QWidget
 import typing
 
 from openalea.lpy.gui.objectpanelcommon import TIME_NBR_DECIMALS, formatDecimals
 
-CONTENT_SPACING = 2
+CONTENT_SPACING = 4
 BASE_DIALOG_SIZE = QSize(300, 400)
 QT_USERROLE_TIME = Qt.UserRole
+TIMEPOINTS_STR = "timepoints"
+ISPROPAGATE_STR = "ispropagate"
 
 class TimePointsDialog(QDialog):
 
     timeSpinbox: QDoubleSpinBox = None
     createTimepointButton: QPushButton = None
+    isPropagateCheckbox: QCheckBox = None
     pointListView: QWidget = None
     timepoints: list[float] = None
-    okPressed: pyqtSignal = pyqtSignal(list)
+    okPressed: pyqtSignal = pyqtSignal(dict)
     timepointAdded: pyqtSignal = pyqtSignal(float)
     timepointRemoved: pyqtSignal = pyqtSignal(float)
 
@@ -60,6 +63,10 @@ class TimePointsDialog(QDialog):
         buttonWidget: QWidget = QWidget(self)
         buttonWidget.setLayout(buttonsLayout)
 
+        self.isPropagateCheckbox: QCheckBox = QCheckBox(self)
+        self.isPropagateCheckbox.setText("Propagate changes to all future timepoints")
+        self.isPropagateCheckbox.setChecked(False)
+        layout.addWidget(self.isPropagateCheckbox)
         layout.addWidget(buttonWidget)
 
         self.setLayout(layout)
@@ -75,9 +82,12 @@ class TimePointsDialog(QDialog):
 
     def ok(self):
         model: QStandardItemModel = self.pointListView.model()
-        res: list = []
+        timepoints: list = []
         for i in range(0, model.rowCount()):
-            res.append(model.index(i, 0).data(QT_USERROLE_TIME))
+            timepoints.append(model.index(i, 0).data(QT_USERROLE_TIME))
+        res: dict = {}
+        res[TIMEPOINTS_STR] = timepoints
+        res[ISPROPAGATE_STR] = self.isPropagateCheckbox.isChecked()
         self.okPressed.emit(res)
         self.close()
 

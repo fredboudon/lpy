@@ -10,11 +10,11 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import QModelIndex, QSize, QUuid
 from PyQt5.QtGui import QCloseEvent, QPixmap
 from PyQt5.QtOpenGL import QGLWidget
-from PyQt5.QtWidgets import QDial, QMainWindow, QMenu, QOpenGLWidget, QWIDGETSIZE_MAX, QWidget
+from PyQt5.QtWidgets import QDial, QLabel, QMainWindow, QMenu, QOpenGLWidget, QWIDGETSIZE_MAX, QWidget
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
 
-from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_UUID, STORE_LPYRESOURCE_STR, STORE_MANAGER_STR
+from openalea.lpy.gui.objectpanelcommon import QT_USERROLE_UUID, STORE_ISPROPAGATE_STR, STORE_LPYRESOURCE_STR, STORE_MANAGER_STR
 from .abstractobjectmanager import AbstractObjectManager
 
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
@@ -95,6 +95,11 @@ class ObjectEditorWidget(QWidget):
 
         self.verticalLayout.addWidget(self.objectView)
 
+        self.warningPropagate: QLabel = QLabel(self)
+        self.warningPropagate.setText("Warning: changes will be propagated to all future timepoints.\nAll future timepoints will be overwritten.")
+        self.warningPropagate.setStyleSheet("background-color: yellow; color: red;")
+        self.warningPropagate.setWordWrap(True)
+        self.verticalLayout.addWidget(self.warningPropagate)
 
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setObjectName("the horizontal layout")
@@ -146,6 +151,13 @@ class ObjectEditorWidget(QWidget):
         assert(isinstance(self.manager, manager.__class__))
         lpyresource: object = self.store[uuid][STORE_LPYRESOURCE_STR]
         self.manager.setObjectToEditor(self.getEditor(), lpyresource)
+        parent = index.parent() or index.model().indexFromItem(index.model().invisibleRootItem()) 
+        parentUuid: QUuid = parent.data(QT_USERROLE_UUID)
+        if parentUuid in self.store.keys():
+            isPropagate: bool = self.store[parentUuid][STORE_ISPROPAGATE_STR]
+            self.warningPropagate.setVisible(isPropagate)
+        else:
+            self.warningPropagate.setVisible(False)
 
     def __updateThumbail(self):
         qpixmap = self.manager.getPixmapThumbnail(self.objectView)

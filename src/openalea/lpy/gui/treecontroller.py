@@ -15,9 +15,9 @@ from openalea.lpy.gui.renamedialog import RenameDialog
 from openalea.lpy.gui.objectmanagers import get_managers
 
 from openalea.lpy.gui.objecteditordialog import ObjectEditorDialog
-from openalea.lpy.gui.objectpanelcommon import EPSILON, QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR, formatDecimals, checkNameUnique
+from openalea.lpy.gui.objectpanelcommon import EPSILON, QT_USERROLE_PIXMAP, QT_USERROLE_UUID, STORE_ISPROPAGATE_STR, STORE_MANAGER_STR, STORE_LPYRESOURCE_STR, STORE_TIMEPOINTS_STR, STORE_TIME_STR, formatDecimals, checkNameUnique
 
-from openalea.lpy.gui.timepointsdialog import TimePointsDialog
+from openalea.lpy.gui.timepointsdialog import ISPROPAGATE_STR, TIMEPOINTS_STR, TimePointsDialog
 
 THUMBNAIL_HEIGHT=128
 THUMBNAIL_WIDTH=128
@@ -177,7 +177,7 @@ class TreeController(QObject):
                             subtype: str = None,                sourceLpyResource: object = None, 
                             clonedItem: QStandardItem = None,   time: float = None, 
                             isGroupTimeline: bool = False,      name: str = None,
-                            groupTimelineTimepoints: list = None                                ) -> QStandardItem:
+                            groupTimelineTimepoints: list = None, isPropagate: bool = None            ) -> QStandardItem:
 
         item: QStandardItem = QStandardItem(parent)
         uuid = QUuid.createUuid()
@@ -210,6 +210,7 @@ class TreeController(QObject):
             color = QColor(LPYRESOURCE_COLOR_STR)
         elif isGroupTimeline:
             self.store[uuid][STORE_TIMEPOINTS_STR] = groupTimelineTimepoints
+            self.store[uuid][STORE_ISPROPAGATE_STR] = isPropagate
             nameString = name # Group-Timeline: 
             color = QColor(GROUPTIMELINE_COLOR_STR)
         elif manager != None: # it's a new lpyresource
@@ -338,21 +339,34 @@ class TreeController(QObject):
         parent: QModelIndex = index.parent()
         if parent == None:
             parent = self.model.index(-1, -1) # root index
+        
+        # the best way I found to mutate my variables from a connect-lambda is to use setattr.
+        # but setattr takes a local object. So either I made an object to pass to setattr to mutate the variables.
+        class DialogResults:
+            timepoints: list = []
+            isPropagate: bool = None
+        dialogResults: DialogResults = DialogResults()
 
-        timepoints: list = []
         dialog: TimePointsDialog = TimePointsDialog(self.parent(), Qt.Window)
         dialog.setTimepoints([0.1, 0.3, 0.7]) # some example points 
-        dialog.okPressed.connect(lambda x: timepoints.extend(x)) #it's an ugly way to mutate an object outside of the lambda, but it works.
+        dialog.okPressed.connect(lambda x: setattr(dialogResults, 'timepoints', x[TIMEPOINTS_STR])) 
+        dialog.okPressed.connect(lambda x: setattr(dialogResults, 'isPropagate', x[ISPROPAGATE_STR]))
         dialog.exec() # blocking call
 
+        timepoints = dialogResults.timepoints
+        isPropagate = dialogResults.isPropagate
         if (len(timepoints) == 0):
-            print("not timepoint: aborting...")
+            print("no timepoint: aborting...")
             return
+        
+        if (isPropagate == None):
+            print("propagate not set. ")
+            exit()
         
         item: QStandardItem = self.model.itemFromIndex(index)
         parentItem: QStandardItem = self.model.itemFromIndex(parent)
-        groupTimelineItem: QStandardItem = self.createItem(parentItem, None, None, None, None, None, True, index.data(Qt.DisplayRole), timepoints)
-        
+        groupTimelineItem: QStandardItem = self.createItem(parentItem, None, None, None, None, None, True, index.data(Qt.DisplayRole), groupTimelineTimepoints=timepoints, isPropagate=isPropagate)
+
         # create timepoints:
         for time in timepoints:
             clonedItem: QStandardItem = self.createItem(groupTimelineItem, None, None, None, item, time)
@@ -364,6 +378,7 @@ class TreeController(QObject):
         # index: QModelIndex of the Group-Timeline.
         uuid: QUuid = index.data(QT_USERROLE_UUID)
         timepoints: list[float] = self.store[uuid][STORE_TIMEPOINTS_STR]
+        isPropagate: bool = self.store[uuid][STORE_ISPROPAGATE_STR]
 
         def insertTimedResource(time: float):
             # find the closest item already existing:
@@ -397,13 +412,16 @@ class TreeController(QObject):
             self.model.removeRow(indexToDelete.row(), index)
             timepoints.remove(time)
 
-        def updateTimepoints(timepointlist: list[float]):
+        def updateTimepoints(dialogResultsDict: dict):
+            timepointlist: list[float] = dialogResultsDict[TIMEPOINTS_STR]
+            isPropagate: bool = dialogResultsDict[ISPROPAGATE_STR]
             uuid: QUuid = index.data(QT_USERROLE_UUID)
             self.store[uuid][STORE_TIMEPOINTS_STR] = timepointlist
-
+            self.store[uuid][STORE_ISPROPAGATE_STR] = isPropagate
 
         dialog: TimePointsDialog = TimePointsDialog(self.parent(), Qt.Window)
         dialog.setTimepoints(timepoints) # some example points
+        dialog.isPropagateCheckbox.setChecked(isPropagate)
         dialog.timepointAdded.connect(insertTimedResource)
         dialog.timepointRemoved.connect(removeTimedResource)
         dialog.okPressed.connect(updateTimepoints)
@@ -502,20 +520,24 @@ class TreeController(QObject):
             self.store[uuid][STORE_LPYRESOURCE_STR] = lpyresource
             model: QStandardItemModel = self.model
             model.setData(index, pixmap, QT_USERROLE_PIXMAP)
-            # model.setData(index, min_pixmap, Qt.DecorationRole)
+            
             # now update posterior resources (if it's in a timeline)
             if self.store[uuid][STORE_TIME_STR] != None:
-                parent = index.parent() or model.indexFromItem(model.invisibleRootItem())
-                numberOfSiblings = model.rowCount(parent)
-                for i in range(0, numberOfSiblings): # loop across siblings under same parent.
-                    sibling: QModelIndex = index.sibling(i, 0)
-                    siblingUuid: QUuid = sibling.data(QT_USERROLE_UUID)
-                    
-                    # You only compare floats regarding to a given epsilon. 
-                    if self.store[siblingUuid][STORE_TIME_STR] - self.store[uuid][STORE_TIME_STR] > EPSILON:
-                        self.store[siblingUuid][STORE_LPYRESOURCE_STR] = lpyresource
-                        model.setData(sibling, pixmap, QT_USERROLE_PIXMAP)
-                        print("updated timepoint" + formatDecimals(self.store[siblingUuid][STORE_TIME_STR]))
+                parent = index.parent() # or model.indexFromItem(model.invisibleRootItem()) ## in this case you're in a group-timeline, you should always have a parent.
+                parentUuid: QUuid = parent.data(QT_USERROLE_UUID)
+                print(self.store[parentUuid].keys())
+                isPropagate: bool = self.store[parentUuid][STORE_ISPROPAGATE_STR]
+                if isPropagate:
+                    numberOfSiblings = model.rowCount(parent)
+                    for i in range(0, numberOfSiblings): # loop across siblings under same parent.
+                        sibling: QModelIndex = index.sibling(i, 0)
+                        siblingUuid: QUuid = sibling.data(QT_USERROLE_UUID)
+                        
+                        # You only compare floats regarding to a given epsilon. 
+                        if self.store[siblingUuid][STORE_TIME_STR] - self.store[uuid][STORE_TIME_STR] > EPSILON:
+                            self.store[siblingUuid][STORE_LPYRESOURCE_STR] = lpyresource
+                            model.setData(sibling, pixmap, QT_USERROLE_PIXMAP)
+                            print("updated timepoint" + formatDecimals(self.store[siblingUuid][STORE_TIME_STR]))
 
     def exportStore(self) -> dict:
         """

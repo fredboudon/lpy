@@ -9,6 +9,7 @@ QT_USERROLE_PIXMAP = Qt.UserRole + 2
 STORE_MANAGER_STR = "manager"
 STORE_LPYRESOURCE_STR = "lpyresource"
 STORE_TIMEPOINTS_STR = "timepoints"
+STORE_ISPROPAGATE_STR = "ispropagate"
 STORE_TIME_STR = "time"
 
 TIME_NBR_DECIMALS = 3

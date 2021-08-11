@@ -219,10 +219,10 @@ class TreeView(QTreeView):
         menuActions["Create group-timeline from this resource"] = QAction('Create group-timeline from this resource',self)
         menuActions["Create group-timeline from this resource"].setData(clickedIndex)
         menuActions["Create group-timeline from this resource"].triggered.connect(self.controller.createGroupTimeline)
-        menuActions["Edit timepoints"] = QAction('Edit timepoints',self)
-        menuActions["Edit timepoints"].setFont(f)
-        menuActions["Edit timepoints"].setData(clickedIndex)
-        menuActions["Edit timepoints"].triggered.connect(self.controller.editTimepoints)
+        menuActions["Edit timepoints and propagation"] = QAction('Edit timepoints and propagation',self)
+        menuActions["Edit timepoints and propagation"].setFont(f)
+        menuActions["Edit timepoints and propagation"].setData(clickedIndex)
+        menuActions["Edit timepoints and propagation"].triggered.connect(self.controller.editTimepoints)
         menuActions["Clone"] = QAction("Clone", self)
         menuActions["Clone"].setData(clickedIndex)
         menuActions["Clone"].triggered.connect(self.controller.cloneItem) 
@@ -238,19 +238,20 @@ class TreeView(QTreeView):
         menuActions["Rename the group-timeline"] = QAction("Rename the group-timeline", self)
         menuActions["Rename the group-timeline"].setData(parentIndex)
         menuActions["Rename the group-timeline"].triggered.connect(self.controller.renameItem)
-        menuActions["Export store"] = QAction("Export store", self)
-        menuActions["Export store"].triggered.connect(self.controller.exportStore)
+        menuActions["[DEBUG] Export store"] = QAction("[DEBUG] Export store", self)
+        menuActions["[DEBUG] Export store"].triggered.connect(self.controller.exportStore)
 
         selectedActions: list = []
-        selectedActions.append(menuActions["Export store"])
 
         if isClickingOnSingleResource: # if there's an item under your mouse, create the menu for it
             selectedActions = selectedActions + [menuActions["Edit"], menuActions["Clone"], menuActions["Create group-timeline from this resource"], menuActions["Rename"], menuActions["Delete"]]
         elif isClickingOnGroupTimeline:
-            selectedActions = selectedActions + [menuActions["Edit timepoints"], menuActions["Clone"], menuActions["Rename"], menuActions["Delete"]]
+            selectedActions = selectedActions + [menuActions["Edit timepoints and propagation"], menuActions["Clone"], menuActions["Rename the group-timeline"], menuActions["Delete"]]
         elif isClickingOnResourceTimeline:
             selectedActions = selectedActions + [menuActions["Edit the group-timeline timepoints"], menuActions["Rename the group-timeline"]]
 
+        selectedActions.append(menuActions["[DEBUG] Export store"])
+        
         contextmenu.addActions(selectedActions)
 
         contextmenu.exec_(self.mapToGlobal(position))

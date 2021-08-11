@@ -26,6 +26,16 @@ vue en liste:
   |--> on va pouvoir charger des fichiers Lpy, (éventuellement) les sauvegarder, mais en tant que liste (pas de groupes pour la compatibilité immédiate)
 - puis, avec Fred, trouver comment importer/exporter le store en JSON
 
+doc: IMPORTANT
+feature: export en dict
+bugfix: renommage group-timeline vérifier nom unique
+feature: case à cocher dans les paramètres du group-timeline pour propager les changements
+feature: warning dans l'éditeur si l'édition est activée ou même un dialog de confirmation
+bugfix: group-timeline dans lequel on supprime des timepoints => timepoints pas supprimés dans la QT_USERROLE_TIMEPOINTS
+bugfix: clonage de group-timeline => nom différents y compris dans les sous-ressources
+feature: les petites icones dans l'arbre
+a priori pour le moment on laisse les screenshots d'éditeurs à droite dans la liste.
+
 3. dump et load de JSON
 
 Penser à re-discuter avec Fred et Christophe sur la sauvegarde des Lpyresources
