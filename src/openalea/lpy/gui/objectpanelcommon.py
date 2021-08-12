@@ -19,7 +19,7 @@ EPSILON = 1e-5
 # this is to avoid unsecure float comparison because of their memory representation.
 
 def formatDecimals(value: int):
-    return "{:.3f}".format(value)
+    return "{:.3f}".format(value) # if you want to change the number of digits displayed, you can do it here.
 
 def checkNameUnique(model: QStandardItemModel, index: QModelIndex, text: str) -> bool:
 

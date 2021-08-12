@@ -40,15 +40,9 @@ class ListDelegate(QStyledItemDelegate):
         self.createEditorCalled.emit(index)
         return None
 
-    def timestampBox(self, f: QFont, index: QModelIndex ):
-        return QFontMetrics(f).boundingRect(index.data(QT_USERROLE_UUID).toString()).adjusted(0, 0, 1, 1)
 
     def paint(self, painter: QPainter, option: 'QStyleOptionViewItem', index: QModelIndex) -> None:
-        # return super().paint(painter, option, index)
-        
-        ## The following paint code only works for QListView with:
-        ##      self.setFlow(QListView.LeftToRight)
-        ##      self.setWrapping(False)
+
         opt: QStyleOptionViewItem = QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
         palette: QPalette = QPalette(opt.palette)
@@ -147,10 +141,10 @@ class TreeController(QObject):
         self.model.setSortRole(Qt.DisplayRole)
         self.store = store
         self.treeDelegate: TreeDelegate = TreeDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
-        self.treeDelegate.createEditorCalled.connect(self.editItemWindow)
+        self.treeDelegate.createEditorCalled.connect(self.createEditorDialog)
         self.listDelegate: ListDelegate = ListDelegate(self) # the delegate is empty and only serves the purpose of catching edit signals to re-dispatch them.
         self.listDelegate._store = store
-        self.listDelegate.createEditorCalled.connect(self.editItemWindow)
+        self.listDelegate.createEditorCalled.connect(self.createEditorDialog)
         self.uuidEditorOpen: list[QUuid] = []
 
     def createExampleObjects(self):
@@ -370,7 +364,7 @@ class TreeController(QObject):
         # create timepoints:
         for time in timepoints:
             clonedItem: QStandardItem = self.createItem(groupTimelineItem, None, None, None, item, time)
-        self.deleteItem( [index] )
+        self.deleteItemList( [index] )
         
     def editTimepoints(self, index: QModelIndex = None) -> QWidget:
         if not isinstance(index, QModelIndex):
@@ -432,7 +426,7 @@ class TreeController(QObject):
         editorWidget.valueChanged.connect(self.saveItem)
         return editorWidget
 
-    def editItemWindow(self, index: QModelIndex = None) -> QWidget:
+    def createEditorDialog(self, index: QModelIndex = None) -> QWidget:
         if not isinstance(index, QModelIndex):
             index: QModelIndex = QObject.sender(self).data()
 
@@ -456,12 +450,12 @@ class TreeController(QObject):
         dialog.index = index
         dialog.setCentralWidget(editorWidget)
         dialog.setWindowTitle(f"{manager.typename} Editor - {name}")
-        dialog.closed.connect(self.emitConnect)
+        dialog.closed.connect(self.dialogClosedConnect)
         dialog.show()
         self.editorCreated.emit([index])
         # return dialog
 
-    def emitConnect(self, index: QModelIndex):
+    def dialogClosedConnect(self, index: QModelIndex):
         self.uuidEditorOpen.remove(index.data(QT_USERROLE_UUID))
         if index.parent() == None:
             self.editorClosed.emit([self.model.index(-1, -1)])
@@ -500,13 +494,15 @@ class TreeController(QObject):
         dialog.exec_()
         return dialog
 
-    def deleteItem(self, indexList: list[QModelIndex] = None):
+    def deleteItemList(self, indexList: list[QModelIndex] = None):
         # replace self by item
         if not isinstance(indexList, list):
             indexList: QModelIndex = QObject.sender(self).data()
         if (len(indexList) > 0):
             for index in indexList:
                 item: QStandardItem = self.model.itemFromIndex(index)
+                uuid: QUuid = item.data(QT_USERROLE_UUID)
+                del self.store[uuid]
                 parent = item.parent() or self.model.invisibleRootItem()
                 parent.removeRow(index.row())
 

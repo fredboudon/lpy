@@ -52,6 +52,7 @@ L'objet retourné (nommé `values` dans l'exemple ci-dessus) est un dictionnaire
   + `STORE_TIME_STR` -> renvoie le timepoint de la ressource si elle est dans un group-timeline, sinon la valeur vaut **None**.
 - Si l'item est un "group-timeline" :
   + `STORE_TIMEPOINTS_STR` -> renvoie une liste des timepoints
+  + `STORE_ISPROPAGATE_STR` -> renvoie un bool, vaut True si la propagation est activée (enregistrer une ressource copie cette ressource à tous les timepoints futurs)
 - Sinon (si c'est un groupe normal):
   + le dictionnaire renvoyé est vide `{}`
   
@@ -73,14 +74,14 @@ time: float = values2[STORE_TIME_STR]
 
 Note : j'ai tendance à systématiquement typer mes variables, je trouve que ça aide à la relecture pour être sûr de ce qu'on manipule (avec : `variable: type = valeur`).
 
-## Instanciation
+## Point d'entrée du code
 
 Les widgets et autres items sont instanciés comme suit : 
 
-Dans un objectpanel, il y a:
+Dans un objectpanel, il y a: (fonction `__init__`)
 - un unique store
 - un unique modèle
-- un uniuqe contrôleur
+- un unique contrôleur
 - un QSplitter qui divise le panel en 2 vues.
   + à gauche, il y a toujours la treeView
   + à droite : 
@@ -90,3 +91,6 @@ Dans un objectpanel, il y a:
     * si on sélectionne plusieurs items, rien n'est affiché.
 
 Cela correspond au code dans `class LpyObjectPanelDock`, dans `__init__`.
+
+
+Plus de détails sur chaque fichiers sont donnés dans les autres fichiers de doc.
