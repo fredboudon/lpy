@@ -246,10 +246,11 @@ class TreeView(QTreeView):
         if isClickingOnSingleResource: # if there's an item under your mouse, create the menu for it
             selectedActions = selectedActions + [menuActions["Edit"], menuActions["Clone"], menuActions["Create group-timeline from this resource"], menuActions["Rename"], menuActions["Delete"]]
         elif isClickingOnGroupTimeline:
-            selectedActions = selectedActions + [menuActions["Edit timepoints and propagation"], menuActions["Clone"], menuActions["Rename the group-timeline"], menuActions["Delete"]]
+            selectedActions = selectedActions + [menuActions["Edit timepoints and propagation"], menuActions["Clone"], menuActions["Rename"], menuActions["Delete"]]
         elif isClickingOnResourceTimeline:
             selectedActions = selectedActions + [menuActions["Edit the group-timeline timepoints"], menuActions["Rename the group-timeline"]]
-
+        else: # normal group
+            selectedActions = selectedActions + [menuActions["Clone"], menuActions["Rename"], menuActions["Delete"]]
         selectedActions.append(menuActions["[DEBUG] Export store"])
         
         contextmenu.addActions(selectedActions)

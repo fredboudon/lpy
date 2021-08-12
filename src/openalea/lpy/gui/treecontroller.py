@@ -19,16 +19,16 @@ from openalea.lpy.gui.objectpanelcommon import EPSILON, QT_USERROLE_PIXMAP, QT_U
 
 from openalea.lpy.gui.timepointsdialog import ISPROPAGATE_STR, TIMEPOINTS_STR, TimePointsDialog
 
-THUMBNAIL_HEIGHT=128
-THUMBNAIL_WIDTH=128
+THUMBNAIL_HEIGHT = 128
+THUMBNAIL_WIDTH = 128
 
 GRID_WIDTH_PX = 128
 GRID_HEIGHT_PX = 128
 GRID_GAP = 8 #px
 
-LPYRESOURCE_COLOR_STR = "#b7cde5"
-GROUPTIMELINE_COLOR_STR = "#b7e5b7"
-GROUP_COLOR_STR = "#e5b7b7"
+LPYRESOURCE_COLOR_STR = "#b7cde5"   # light blue
+GROUPTIMELINE_COLOR_STR = "#b7e5b7" # light green
+GROUP_COLOR_STR = "#e5b7b7"         # light red
 
 class ListDelegate(QStyledItemDelegate):
     createEditorCalled: pyqtSignal = pyqtSignal(QModelIndex)
@@ -487,6 +487,7 @@ class TreeController(QObject):
                 self.model.setData(child, f"{data}@" + formatDecimals(time) ,Qt.DisplayRole)
 
         name = f"{index.data(Qt.DisplayRole)}"
+        
         dialog = RenameDialog(self.parent())
         dialog.setModelIndex(index)
         dialog.setTextValue(name)
@@ -545,25 +546,18 @@ class TreeController(QObject):
         """
         res: dict = {}
         def getRecursive(index: QModelIndex, d: dict):
-            uuid = index.data(QT_USERROLE_UUID)
-            name = index.data(Qt.DisplayRole)
-            d[name] = self.store[uuid]
             for i in range(0, self.model.rowCount(index)):
-                childIndex: QModelIndex = self.model.index(i, 0)
+                childIndex: QModelIndex = self.model.index(i, 0, index)
                 childName: str = childIndex.data(Qt.DisplayRole)
-                d[name][childName] = getRecursive(childIndex, d[name])
+                if self.isLpyResource(childIndex):
+                    childUuid: QUuid = childIndex.data(QT_USERROLE_UUID)
+                    time: float = self.store[childUuid][STORE_TIME_STR]
+                    d[childName] = self.store[childUuid][STORE_LPYRESOURCE_STR]
+                else:
+                    d[childName] = {}
+                    d[childName] = getRecursive(childIndex, d[childName])
             return d
 
-        
-        for i in range(0, self.model.rowCount()):
-            index: QModelIndex = self.model.index(i, 0)
-            uuid = index.data(QT_USERROLE_UUID)
-            name: str = index.data(Qt.DisplayRole)
-            res = getRecursive(index, res)
-
-        with open('out.json', 'w') as outfile:
-            import json
-            json.dump(res.__str__(), outfile)
-        import pry
-        pry()
+        res = getRecursive(self.model.indexFromItem(self.model.invisibleRootItem()), res)
+        import pry; pry()
         return res

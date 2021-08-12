@@ -153,7 +153,7 @@ class ObjectEditorWidget(QWidget):
         self.manager.setObjectToEditor(self.getEditor(), lpyresource)
         parent = index.parent() or index.model().indexFromItem(index.model().invisibleRootItem()) 
         parentUuid: QUuid = parent.data(QT_USERROLE_UUID)
-        if parentUuid in self.store.keys():
+        if parentUuid in self.store.keys() and STORE_ISPROPAGATE_STR in self.store[parentUuid]:
             isPropagate: bool = self.store[parentUuid][STORE_ISPROPAGATE_STR]
             self.warningPropagate.setVisible(isPropagate)
         else:
