@@ -1,4 +1,4 @@
-Tour d'horizon de TreeController
+# Tour d'horizon de TreeController
 
 Classe servant de contrôleur pour le modèle QStandardItemModel.
 

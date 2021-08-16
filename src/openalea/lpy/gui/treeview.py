@@ -17,18 +17,13 @@ from .objectpanelcommon import *
 
 class TreeView(QTreeView):
 
-    valueChanged = pyqtSignal(int)
-    AutomaticUpdate = pyqtSignal()
-    renameRequest = pyqtSignal(int)
-    updateList = pyqtSignal()
-
     panelManager: object = None # type : ObjectPanelManager (type not declared to avoid circular import)
-    menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
-    isActive: bool = True
-    activeGroup = None # can be TreeWidget (if top level) or TreeItem (if group)
     selectedIndexChanged: pyqtSignal = pyqtSignal(list)
-    
     controller: TreeController = None
+
+    # was used to read selected index, unused now
+    activeGroup: list[QModelIndex] = None # can be TreeWidget (if top level) or TreeItem (if group)
+
 
     def __init__(self, parent: QWidget = None, panelmanager: object = None, controller: TreeController = None) -> None:
         super().__init__(parent=parent)
@@ -52,7 +47,6 @@ class TreeView(QTreeView):
         self.setModel(controller.model)
         self.setExpandsOnDoubleClick(True) # FIXME: doesn't work if we set a delegate...
 
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection) 
         self.setEditTriggers(self.editTriggers() | QAbstractItemView.DoubleClicked)
 
         self.plugins : list[str, AbstractObjectManager] = list(get_managers().items())        
@@ -60,6 +54,9 @@ class TreeView(QTreeView):
         ## add custom context menu.
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.contextMenuRequest)
+
+    ## TODO: change these functions below to deal with tree structure
+    ## ===== functions to interface with LpyEditor =====
 
     def getItemsFromActiveGroup(self, withGroups: bool = False) -> list[QStandardItem]:
         res: list[QStandardItem] = []
@@ -103,8 +100,6 @@ class TreeView(QTreeView):
             tree = {startItem.getName(): getItemcontent(startItem)}
         return tree
   
-    ## TODO: change these functions below to deal with tree structure
-    ## ===== functions to interface with LpyEditor =====
     def getObjects(self):
         visibleLpyResources = self.getItemsFromActiveGroup(withGroups=False)
         objects = list(map(lambda i: (i.getManager(), i.getLpyResource()), visibleLpyResources))
@@ -114,7 +109,6 @@ class TreeView(QTreeView):
         from copy import deepcopy
         return [(m,deepcopy(o)) for m,o in self.getObjects()]
     
-    """
     def setObjects(self, objectList):
         self.clear()
         self.appendObjects(objectList)
@@ -129,7 +123,10 @@ class TreeView(QTreeView):
         item.setName(f"Item Name")
         # self.setItemWidget(item, item.getWidget()) # we display the item with a custom widget
         self.valueChanged.emit(self.count() - 1) #emitting the position of the item
-    """
+
+
+## useful functions below
+
     def selectionChanged(self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection) -> None:
         res =  super().selectionChanged(selected, deselected)
         selected = self.selectedIndexes()
@@ -170,10 +167,10 @@ class TreeView(QTreeView):
             newItemString = "New Child Item"
             newGroupString = "New Child Group"
         
-        isClickingOnGroupOrBackground = (clickedItem == None) or ((not self.controller.isLpyResource(clickedIndex)) and (not self.controller.isGroupTimeline(clickedIndex)))
-        isClickingOnSingleResource = (self.controller.isLpyResource(clickedIndex) and not self.controller.isGroupTimeline(parentIndex))
-        isClickingOnGroupTimeline = (self.controller.isGroupTimeline(clickedIndex))
-        isClickingOnResourceTimeline = (self.controller.isLpyResource(clickedIndex) and self.controller.isGroupTimeline(parentIndex))
+        isClickingOnGroupOrBackground: bool = (clickedItem == None) or ((not self.controller.isLpyResource(clickedIndex)) and (not self.controller.isGroupTimeline(clickedIndex)))
+        isClickingOnSingleResource: bool = (self.controller.isLpyResource(clickedIndex) and not self.controller.isGroupTimeline(parentIndex))
+        isClickingOnGroupTimeline: bool = (self.controller.isGroupTimeline(clickedIndex))
+        isClickingOnResourceTimeline: bool = (self.controller.isLpyResource(clickedIndex) and self.controller.isGroupTimeline(parentIndex))
         selectedActions: list = []
 
         if isClickingOnGroupOrBackground:
@@ -251,6 +248,7 @@ class TreeView(QTreeView):
             selectedActions = selectedActions + [menuActions["Edit the group-timeline timepoints"], menuActions["Rename the group-timeline"]]
         else: # normal group
             selectedActions = selectedActions + [menuActions["Clone"], menuActions["Rename"], menuActions["Delete"]]
+        
         selectedActions.append(menuActions["[DEBUG] Export store"])
         
         contextmenu.addActions(selectedActions)

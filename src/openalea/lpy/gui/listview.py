@@ -26,11 +26,7 @@ from openalea.plantgl.gui.qt.QtWidgets import QAbstractItemView, QAction, QAppli
 
 class ListView(QListView):
 
-    valueChanged = pyqtSignal(int)
     itemSelectionChanged = pyqtSignal(int) # /!\ "selectionChanged" is already exists! Don't override already existing names!
-    AutomaticUpdate = pyqtSignal()
-    renameRequest = pyqtSignal(int)
-
     panelManager: object = None # type : ObjectPanelManager (type not declared to avoid circular import)
     plugins: dict[AbstractObjectManager] = {}
     menuActions: dict[QObject] = {} # could be QActions and, or QMenus...
@@ -99,6 +95,8 @@ class ListView(QListView):
     ## the context menu is the same as in TreeView, it depends on the same rules from where you click.
     ## additionally, "TreeView.contextMenuRequest" has "self" calls but only using self.controller, which is shared by the ListView too.
     ## so we can avoid duplication and invoke the TreeView menu from here.
+    ## --- I KNOW THAT NORMALLY you would to some AbstractView to implement this and inherit this view.
+    ## --- BUT it's causing more problems than it's bringing any solution to do multiple inheritance, so I'll just do it that way.
     def contextMenuRequest(self, position):
         TreeView.contextMenuRequest(self, position)
 

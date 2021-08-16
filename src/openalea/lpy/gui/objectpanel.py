@@ -318,26 +318,27 @@ class LpyObjectPanelDock (QDockWidget):
         self.objectpanel.setObjectName(name+"panelarea")
         
         self.verticalLayout.addWidget(self.objectpanel)
-        self.objectNameEdit = QLineEdit(self.dockWidgetContents)
-        self.objectNameEdit.setObjectName(name+"NameEdit")
-        self.verticalLayout.addWidget(self.objectNameEdit)        
-        self.objectNameEdit.hide()
         self.setWidget(self.dockWidgetContents)
         
-        self.treeView.valueChanged.connect(self.__updateStatus)
-        self.treeView.AutomaticUpdate.connect(self.__transmit_autoupdate)
+        ## Legacy connect to update stuff. Useless when using QStandardItemModel
+        # self.treeView.valueChanged.connect(self.__updateStatus)
+        # self.treeView.AutomaticUpdate.connect(self.__transmit_autoupdate)
         # self.treeView.itemSelectionChanged.connect(self.endNameEditing)
-        self.treeView.renameRequest.connect(self.displayName)
+        # self.treeView.renameRequest.connect(self.displayName)
 
-        self.objectNameEdit.editingFinished.connect(self.updateName)
+        ## Legacy rename editor
+        # self.objectNameEdit = QLineEdit(self.dockWidgetContents)
+        # self.objectNameEdit.setObjectName(name+"NameEdit")
+        # self.verticalLayout.addWidget(self.objectNameEdit)        
+        # self.objectNameEdit.hide()
+        # self.objectNameEdit.editingFinished.connect(self.updateName)
+
         self.dockNameEdition = False
         self.nameEditorAutoHide = True
         self.setAcceptDrops(True)
 
     def setRightPanel(self, selectedIndexList: list[QModelIndex]):
         layout: QStackedLayout = self.rightPanel.layout()
-        for i in layout.findChildren(object):
-            print(i)
         if len(selectedIndexList) == 1:
             self.rightPanel.show()
             index: QModelIndex = selectedIndexList[0]
@@ -423,9 +424,9 @@ class LpyObjectPanelDock (QDockWidget):
         if hasattr(self,'statusBar'):
             self.statusBar.showMessage(msg,timeout)
         else:
-            print(msg)    
+            print(msg)
+    
     def __updateStatus(self, i=None):
-
         if not i is None and 0 <= i < self.treeView.count() and self.treeView.item(i).getManager().managePrimitive():
             self.valueChanged.emit(True)
         else:
