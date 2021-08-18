@@ -555,5 +555,4 @@ class TreeController(QObject):
             return d
 
         res = getRecursive(self.model.indexFromItem(self.model.invisibleRootItem()), res)
-        import pry; pry()
         return res
