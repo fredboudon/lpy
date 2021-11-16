@@ -9,7 +9,7 @@ from openalea.plantgl.gui.qt import qt
 from openalea.plantgl.gui.qt.QtCore import QObject, pyqtSignal
 from openalea.plantgl.gui.qt.QtWidgets import QApplication, QCheckBox, QDialog, QHBoxLayout, QLayout, QMenuBar, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout
 
-    
+
 class ObjectDialog(QDialog):
     """the class that will create dialog between the panel and the editor window"""
     valueChanged = pyqtSignal()
@@ -25,7 +25,9 @@ class ObjectDialog(QDialog):
     
     def setupUi(self,editor):
         self.setObjectName("ObjectDialog")
-        self.resize(389, 282)
+        self.setBaseSize(600,400)
+        self.setMinimumHeight(200)
+        self.setMinimumWidth(300)
         self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setSpacing(2)
         self.verticalLayout.setContentsMargins(2, 2, 2, 2)
@@ -74,7 +76,7 @@ class ObjectDialog(QDialog):
         self.applyButton.pressed.connect(self.__apply)
         self.autoUpdateCheckBox.toggled.connect(self.setAutomaticUpdate)
         self.objectView.valueChanged.connect(self.__valueChanged)
-        
+
     def menu(self):
         return self._menu
     
@@ -106,7 +108,4 @@ class ObjectDialog(QDialog):
             if self.automaticUpdate and self.hasChanged :
                 self.__apply()
                 
-
-    def closeEvent(self,event):
-        QDialog.closeEvent(self,event)
 
