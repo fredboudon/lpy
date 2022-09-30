@@ -17,31 +17,28 @@ build:
   preserve_egg_dir: True
   number: 0
 requirements:
-  build:
-    - binutils_impl_linux-64<2.31.0 # [linux]
-    - {{ compiler('cxx') }}
-    - python {{PY_VER}}
-    - cmake >=3.12.0
-    - pkg-config                        # [linux]
-    - make                              # [unix]
-    - menuinst                          # [win]
   host:
     - python {{PY_VER}}
     - setuptools
-    - openalea.plantgl
-    # - boost # provided by plantgl
-    - pyqt
+    - openalea.plantgl>=3.15
+    - qt>=6.2
+  build:
+    - {{ compiler('cxx') }}
+    - cmake >=3.20.0
+    - pkg-config                        # [linux]
+    - make                              # [unix]
+    - menuinst                          # [win]
   run:
     - python {{PY_VER}}
     - setuptools
-    - {{ pin_compatible('openalea.plantgl', max_pin='x.x') }} 
-    - {{ pin_compatible('boost',            max_pin='x.x.x') }} 
-    - pyqt
+    - {{ pin_compatible('numpy',    max_pin='x.x') }}
+    - {{ pin_compatible('openalea.plantgl', max_pin='x.x') }}
+    - {{ pin_compatible('boost',            max_pin='x.x.x') }}
+    - pyside6
     - ipython
-    - qtconsole
+    - qtconsole-base
     - jupyter_client # <6
     - pyopengl
-    - pyqglviewer
     - jsonschema
 
 app:
