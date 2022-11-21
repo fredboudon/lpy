@@ -6,7 +6,13 @@ try:
     ParentClass = QGLViewer
     hasPyQGLViewer = True
 except ImportError as e:
-    ParentClass = qt.QtWidgets.QOpenGLWidget
+    try:
+        from openalea.plantgl.gui.qt.QtWidgets import QOpenGLWidget
+        ParentClass = QOpenGLWidget
+        pass
+    except:
+        from openalea.plantgl.gui.qt.QtOpenGL import QOpenGLWidget
+        ParentClass = QOpenGLWidget
     print('Missing PyQGLViewer !!!!!! Unstable Lpy !!!!!!!!!')
     hasPyQGLViewer = False
 
