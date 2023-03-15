@@ -1,0 +1,59 @@
+#{% set version = "2.7.2" %}
+{% set data = load_setup_py_data() %}
+
+package:
+  name: openalea.lpy
+  version: {{ data.get('version') }}
+
+source:
+  path: ..
+
+about:
+  home: https://github.com/openalea/lpy
+  license: Cecill-C
+  summary: L-Py is a simulation software that mixes L-systems construction with the Python high-level modeling language.
+
+build:
+  preserve_egg_dir: True
+  number: 1
+requirements:
+  host:
+    - python
+    - setuptools
+    - openalea.plantgl>=3.19
+    - qt=6.2.2
+  build:
+    - {{ compiler('cxx') }}
+    - cmake >=3.20.0
+    - pkg-config                        # [linux]
+    - make                              # [unix]
+    - menuinst                          # [win]
+  run:
+    - python
+    - setuptools
+    - {{ pin_compatible('numpy',    max_pin='x.x') }}
+    - {{ pin_compatible('openalea.plantgl', max_pin='x.x') }}
+    - {{ pin_compatible('boost',            max_pin='x.x.x') }}
+    - pyside6
+    - ipython
+    - qtconsole-base
+    - jupyter_client # <6
+    - pyopengl
+    - jsonschema
+
+app:
+  entry: lpy
+  summary: Plant simulation software
+  icon: icon_64x64.png
+
+test:
+  requires:
+    - nose
+  imports:
+    - openalea.lpy
+  source_files:
+    - test/
+    - share/
+  commands:
+    - nosetests -v -I test_predecessor_at_scale.py -I test_ui.py [unix]
+    - nosetests -v -I test_predecessor_at_scale.py -I test_ui.py -I test_axialtree.py -I test_successor_at_scale.py [win]
