@@ -18,23 +18,25 @@ build:
   number: 1
 requirements:
   host:
-    - python
+    - python x.x
     - setuptools
-    - openalea.plantgl>=3.16
-    - qt=6.2.2
+    - openalea.plantgl >=3.17
+    - boost x.x
+    - pyqt
   build:
+    - binutils_impl_linux-64           # [linux]
     - {{ compiler('cxx') }}
-    - cmake >=3.20.0
+    - python x.x
+    - cmake
     - pkg-config                        # [linux]
     - make                              # [unix]
     - menuinst                          # [win]
   run:
-    - python
+    - python x.x
     - setuptools
-    - {{ pin_compatible('numpy',    max_pin='x.x') }}
     - {{ pin_compatible('openalea.plantgl', max_pin='x.x') }}
-    - {{ pin_compatible('boost',            max_pin='x.x.x') }}
-    - pyside6
+    - boost x.x
+    - pyqt
     - ipython
     - qtconsole-base
     - jupyter_client # <6
@@ -49,11 +51,12 @@ app:
 test:
   requires:
     - nose
+    - pandas
   imports:
     - openalea.lpy
   source_files:
     - test/
     - share/
   commands:
-    - nosetests -v -I test_predecessor_at_scale.py -I test_ui.py [unix]
-    - nosetests -v -I test_predecessor_at_scale.py -I test_ui.py -I test_axialtree.py -I test_successor_at_scale.py [win]
+    - nosetests -v -I test_predecessor_at_scale.py -I test_ui.py -I test_pickle.py [unix]
+    - nosetests -v -I test_predecessor_at_scale.py -I test_ui.py -I test_axialtree.py -I test_successor_at_scale.py -I test_pickle.py [win]
