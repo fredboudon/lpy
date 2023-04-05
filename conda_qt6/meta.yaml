@@ -20,7 +20,7 @@ requirements:
   host:
     - python
     - setuptools
-    - openalea.plantgl>=3.19
+    - openalea.plantgl>=3.20
     - qt=6.2.2
   build:
     - {{ compiler('cxx') }}
