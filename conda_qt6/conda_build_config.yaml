@@ -16,3 +16,6 @@ MACOSX_DEPLOYMENT_TARGET:  # [osx]
   - '10.12'                # [osx]
 MACOSX_SDK_VERSION:        # [osx and x86_64]
   - '10.12'                # [osx and x86_64]
+
+#CONDA_BUILD_SYSROOT:   # [osx]
+#  - /Users/ci/Desktop/MacOSX-SDKs/MacOSX10.12.sdk # [osx] 
