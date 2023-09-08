@@ -36,7 +36,7 @@ cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} \
       -DCMAKE_BUILD_TYPE=Release  \
       -DPython3_EXECUTABLE=${PYTHON} \
        ${SYSTEM_DEPENDENT_ARGS[@]} \
-      -LAH .. 
+      -LAH ..
 
 echo
 echo "****** LPY CONFIG"
@@ -44,8 +44,7 @@ cat $SRC_DIR/src/openalea/lpy/__version__.py
 
 echo
 echo "****** COMPILE"
-export VERBOSE=1
-make -j${CPU_COUNT} 
+make -j${CPU_COUNT}
 echo "****** INSTALL CXX LIB"
 make install
 
@@ -56,7 +55,7 @@ echo "PYTHON:" ${PYTHON}
 
 #echo "** PYTHON CALL"
 #export PYTHONPATH=${PREFIX}/lib/python${PY_VER}/site-packages/
-${PYTHON} setup.py install --prefix=${PREFIX} 
+${PYTHON} setup.py install --prefix=${PREFIX}
 
 #cp -r share `${PYTHON} -c "import os, openalea.lpy as lpy ; print(os.path.dirname(lpy.__file__))"`/..
 
@@ -68,7 +67,7 @@ echo "****** CHECK PYTHON LIB"
 if [ `uname` = "Darwin" ]; then
     export LDD='otool -L'
 else
-    export LDD='ldd'    
+    export LDD='ldd'
 fi
 
 echo `${PYTHON} -c "import openalea.lpy.__lpy_kernel__ as lpy ; print(lpy.__file__)"`
