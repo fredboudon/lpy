@@ -19,8 +19,8 @@ try:
     NewOpenGLClass = True
     pass
 except:
-    from openalea.plantgl.gui.qt.QtOpenGL import QGLWidget 
-    QGLParentClass = QGLWidget 
+    from openalea.plantgl.gui.qt.QtOpenGL import QOpenGLWidget
+    QGLParentClass = QOpenGLWidget
     NewOpenGLClass = False
 
 
