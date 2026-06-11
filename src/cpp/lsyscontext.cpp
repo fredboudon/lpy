@@ -487,6 +487,7 @@ LsysContext::clear(){
   __paramproductions.clear();
   __early_return = false;
   clearNamespace();
+  pyturtle().attr("clear_parameters")();
 }
 
 bool
