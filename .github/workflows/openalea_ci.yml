@@ -32,4 +32,4 @@ jobs:
     secrets:
       anaconda_token: ${{ secrets.ANACONDA_TOKEN }}
     with:
-      channels : ${{ env.ANACONDA_CHANNELS }}
+      channels : ${{ vars.ANACONDA_CHANNELS }}
