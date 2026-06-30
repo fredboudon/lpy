@@ -32,4 +32,4 @@ jobs:
     secrets:
       anaconda_token: ${{ secrets.ANACONDA_TOKEN }}
     with:
-      organisation: : ${{ vars.ANACONDA_ORGANISATION || 'https://conda.anaconda.org/openalea3' }}
+      organisation: ${{ vars.ANACONDA_ORGANISATION || 'https://conda.anaconda.org/openalea3' }}
