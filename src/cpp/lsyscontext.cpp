@@ -1223,6 +1223,10 @@ GlobalContext * GlobalContext::get()
     return GLOBAL_LSYSCONTEXT;    
 }
 
+void GlobalContext::cleanup()
+{
+    __reprFunc = boost::python::object();
+}
 
 GlobalContext::~GlobalContext()
 {
