@@ -34,6 +34,7 @@
 #include <plantgl/tool/util_string.h>
 #include <plantgl/python/extract_list.h>
 #include <QtCore/QFileInfo>
+#include <initializer_list>
 
 using namespace boost::python;
 TOOLS_USING_NAMESPACE
@@ -115,17 +116,6 @@ has_keyword_pattern(const std::string& src,
 /*---------------------------------------------------------------------------*/
 
 inline 
-void ToEndlineCheckColon(std::string::const_iterator& _it, std::string::const_iterator _end, std::string& filename, int& lineno){
-    bool colon = false;
-    while( _it!=_end && (*_it)!='\n') {
-        ++_it;
-        if ((*_it)!=':')colon = true;
-    }
-    if (!colon) LsysWarning("Colon missing.",filename,lineno);
-    if(_it!=_end && (*_it)=='\n') { ++lineno; ++_it; }
-}
-
-inline 
 void ToEndline(std::string::const_iterator& _it, std::string::const_iterator _end,int& lineno){
 	while( _it!=_end && (*_it)!='\n') ++_it;
     if(_it!=_end && (*_it)=='\n') { ++lineno; ++_it; }
@@ -142,7 +132,6 @@ void ToEndlineA(std::string::const_iterator& _it,std::string::const_iterator _en
 
 #define toendline(a,b) ToEndline(a,b,lineno)
 #define toendlineA(a,b) ToEndlineA(a,b,lineno)
-#define toendlineC(a,b) ToEndlineCheckColon(a,b,filename,lineno)
 
 /*---------------------------------------------------------------------------*/
 
@@ -152,6 +141,189 @@ bool notOnlySpace(std::string::const_iterator beg, std::string::const_iterator e
         if ( (*beg)!=' ' && (*beg)!='\t'&& (*beg)!='\n') return true;
         else ++beg;
 	return false;
+}
+
+/*---------------------------------------------------------------------------*/
+namespace {
+
+using SourceIterator = std::string::const_iterator;
+
+enum class Directive {
+#define LPY_DIRECTIVE(id, keyword, payload) id,
+#include "lsystem_directives.inc"
+#undef LPY_DIRECTIVE
+};
+
+enum class DirectivePayload {
+    ColonPayload,
+    ValueAfterColon,
+    ValueBeforeColon,
+    SectionHeader,
+    LineTail,
+    ModuleDeclarations,
+    ModuleNames,
+    NamedSource,
+    AxialPayload
+};
+
+struct DirectiveSyntax {
+    const char* keyword;
+    DirectivePayload payload;
+};
+
+const DirectiveSyntax& directiveSyntax(Directive directive)
+{
+    static constexpr DirectiveSyntax syntax[] = {
+#define LPY_DIRECTIVE(id, keyword, payload) {keyword, DirectivePayload::payload},
+#include "lsystem_directives.inc"
+#undef LPY_DIRECTIVE
+    };
+    return syntax[static_cast<size_t>(directive)];
+}
+
+bool matchDirective(SourceIterator& it, SourceIterator begin, SourceIterator end,
+                    Directive directive)
+{
+    return has_keyword_pattern(it, begin, end, directiveSyntax(directive).keyword);
+}
+
+SourceIterator findDirectiveColon(SourceIterator it, SourceIterator end)
+{
+    while (it != end && *it != ':' && *it != '\n') ++it;
+    return it;
+}
+
+SourceIterator directiveLineEnd(SourceIterator it, SourceIterator end)
+{
+    const auto newline = std::find(it, end, '\n');
+    return newline == end ? end : newline + 1;
+}
+
+enum class DirectiveValuePosition { BeforeColon, AfterColon };
+
+struct DirectiveLine {
+    SourceIterator valueBegin;
+    SourceIterator valueEnd;
+    SourceIterator end;
+    bool hasColon;
+
+    std::string value() const { return std::string(valueBegin, valueEnd); }
+};
+
+DirectiveLine readDirectiveLine(SourceIterator afterKeyword, SourceIterator end,
+                                DirectiveValuePosition position = DirectiveValuePosition::AfterColon)
+{
+    const auto colon = findDirectiveColon(afterKeyword, end);
+    if (colon == end || *colon != ':')
+        return {colon, colon, colon, false};
+
+    const auto lineEnd = directiveLineEnd(colon + 1, end);
+    if (position == DirectiveValuePosition::BeforeColon)
+        return {afterKeyword, colon, lineEnd, true};
+    return {colon + 1, lineEnd, lineEnd, true};
+}
+
+struct ImportDirective {
+    std::string moduleName;
+    SourceIterator end;
+};
+
+ImportDirective readImportDirective(SourceIterator afterKeyword, SourceIterator end)
+{
+    const auto valueBegin = afterKeyword == end ? end : afterKeyword + 1;
+    const auto lineEnd = directiveLineEnd(valueBegin, end);
+    return {LpyParsing::trim(std::string(valueBegin, lineEnd)), lineEnd};
+}
+
+struct SectionLine {
+    SourceIterator end;
+    bool warnMissingColon;
+};
+
+SectionLine readSectionLine(SourceIterator afterKeyword, SourceIterator end)
+{
+    auto it = afterKeyword;
+    bool warnMissingColon = true;
+    // Preserve the legacy warning for section lines.
+    while (it != end && *it != '\n') {
+        ++it;
+        if (it == end || *it != ':') warnMissingColon = false;
+    }
+    if (it != end) ++it;
+    return {it, warnMissingColon};
+}
+
+} // namespace
+
+static std::pair<SourceIterator, bool>
+readPythonString(SourceIterator it, SourceIterator end)
+{
+    const char token = *it;
+    ++it;
+    const bool triple = end - it >= 2 && *it == token && *(it + 1) == token;
+    if (triple) it += 2;
+    while (it != end) {
+        if (*it == '\\') {
+            ++it;
+            if (it != end) ++it;
+        }
+        else if (*it == token &&
+                 (!triple || (end - it >= 3 && *(it + 1) == token && *(it + 2) == token))) {
+            it += triple ? 3 : 1;
+            return {it, true};
+        }
+        else ++it;
+    }
+    return {end, false};
+}
+
+// Read up to a delimiter outside Python strings, comments and nested groups.
+static std::string::const_iterator
+readPythonFragment(std::string::const_iterator it,
+                   std::string::const_iterator end,
+                   const std::string& delimiters,
+                   int lineno = -1)
+{
+    std::vector<char> closing;
+    while (it != end) {
+        const char token = *it;
+        if (closing.empty() && delimiters.find(token) != std::string::npos)
+            return it;
+
+        switch (token) {
+        case '\'':
+        case '"': {
+            const auto string = readPythonString(it, end);
+            it = string.first;
+            if (!string.second)
+                LsysSyntaxError("Unterminated string in Python fragment.", "", lineno);
+            continue;
+        }
+        case '#':
+            while (it != end && *it != '\n') ++it;
+            continue;
+        case '(':
+            closing.push_back(')');
+            break;
+        case '[':
+            closing.push_back(']');
+            break;
+        case '{':
+            closing.push_back('}');
+            break;
+        case ')':
+        case ']':
+        case '}':
+            if (closing.empty() || closing.back() != token)
+                LsysSyntaxError("Unexpected closing delimiter in Python fragment.", "", lineno);
+            else closing.pop_back();
+            break;
+        }
+        ++it;
+    }
+    if (!closing.empty())
+        LsysSyntaxError("Unclosed delimiter in Python fragment.", "", lineno);
+    return end;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -291,7 +463,7 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
       for(std::string::const_iterator _it = lbeg; _it != _rules.end(); ++_it){
         if (*_it == '%'){
             std::string::const_iterator _it2 = _it;
-            if(has_keyword_pattern(_it,_rules.begin(),_rules.end(),"\%pastefile") ) {
+            if(matchDirective(_it,_rules.begin(),_rules.end(),Directive::Pastefile) ) {
                 _nrules.append(lbeg, _it2);
                 _it++;
                 std::string::const_iterator begname = _it;
@@ -310,7 +482,7 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
                 else LsysParserSyntaxError("invalid file to paste");
                 lbeg = _it;
             }
-			else if(has_keyword_pattern(_it,_rules.begin(),_rules.end(),"\%pastemodule") ) {
+			else if(matchDirective(_it,_rules.begin(),_rules.end(),Directive::Pastemodule) ) {
                 _nrules.append(lbeg, _it2);
                 _it++;
                 std::string::const_iterator begname = _it;
@@ -361,9 +533,9 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
   std::string addedcode;
   int axiom_lineno;
   bool axiom_is_function = false;
-  int max_derivation_lineno;
-  int decomposition_max_depth_lineno;
-  int homomorphism_max_depth_lineno;
+  int max_derivation_lineno = -1;
+  int decomposition_max_depth_lineno = -1;
+  int homomorphism_max_depth_lineno = -1;
   int omode = -1;
   int mode = -1;
   lineno = 1;
@@ -387,6 +559,41 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 
   if (initpos != std::string::npos) endpycode = rules.begin()+initpos;
 
+  const auto readValueDirective = [&](Directive id) {
+    const auto& syntax = directiveSyntax(id);
+    const auto position = syntax.payload == DirectivePayload::ValueBeforeColon
+        ? DirectiveValuePosition::BeforeColon : DirectiveValuePosition::AfterColon;
+    const bool requireValue = syntax.payload == DirectivePayload::ValueAfterColon ||
+                              syntax.payload == DirectivePayload::ValueBeforeColon;
+    const DirectiveLine directive = readDirectiveLine(_it, endpycode, position);
+    if (!directive.hasColon) {
+      const std::string expected = position == DirectiveValuePosition::BeforeColon
+          ? "Cannot find value and ':' after " : "Cannot find ':' after ";
+      LsysParserSyntaxError(expected + syntax.keyword);
+    }
+    else if (requireValue && !notOnlySpace(directive.valueBegin, directive.valueEnd)) {
+      // Values after the colon were diagnosed after consuming the line.
+      const bool afterNewline = position == DirectiveValuePosition::AfterColon &&
+                                *(directive.end - 1) == '\n';
+      LsysSyntaxError(std::string("Cannot find value for ") + syntax.keyword, filename, lineno + afterNewline);
+    }
+    return directive;
+  };
+
+  const auto consumeDirective = [&](SourceIterator end) {
+    if (_it != end && *(end - 1) == '\n') ++lineno;
+    _it = end;
+  };
+
+  const auto enterRuleSection = [&](int section, const char* commentPrefix) {
+    const auto directive = readSectionLine(_it, endpycode);
+    if (directive.warnMissingColon) LsysParserWarning("Colon missing.");
+    consumeDirective(directive.end);
+    code += commentPrefix + std::string(_it2, _it);
+    beg = _it;
+    mode = section;
+  };
+
   while(_it!=endpycode){
 	// printf("******'%c' %i\n",*_it,std::distance(begcode,_it));
 	switch(mode){
@@ -409,11 +616,11 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 		case 'a':
 		case 'A':
 		  _it2 = _it;
-		  if((has_keyword_pattern(_it,begcode,endpycode,"Axiom") || has_keyword_pattern(_it,begcode,endpycode,"axiom")) && 
+		  if((matchDirective(_it, begcode, endpycode, Directive::Axiom) ||
+                  matchDirective(_it, begcode, endpycode, Directive::LowercaseAxiom)) &&
 			 (_it2 == rules.begin() || *(_it2-1) == '\n')){
             code += std::string(beg,_it2);
-			beg = _it;
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n') _it++;
+			_it = findDirectiveColon(_it, endpycode);
 			if(_it!=endpycode && (*_it)==':'){
 			  _it++;
               axiom_lineno = lineno;
@@ -438,7 +645,7 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 		  break;
 		case 'n':
 		  _it2 = _it;
-          if(has_keyword_pattern(_it,begcode,endpycode,"nproduce")){
+          if(matchDirective(_it,begcode,endpycode,Directive::Nproduce)){
     		code += std::string(beg,_it2);
 			code += "pproduce";
 		    while(_it != endpycode && (*_it == ' ' || *_it == '\t') )++_it;
@@ -455,7 +662,7 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 		  break;
 		case 'm':
 		  _it2 = _it;
-          if(has_keyword_pattern(_it,begcode,endpycode,"module")){
+          if(matchDirective(_it,begcode,endpycode,Directive::Module)){
             code+=std::string(beg,_it2);
 			LpyParsing::ModLineDeclaration modules = LpyParsing::parse_moddeclaration_line(_it,endpycode);
 			int scale = ModuleClass::DEFAULT_SCALE;
@@ -544,7 +751,7 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 			beg = _it;
 			toendlineA(_it,endpycode);
 		  }
-		  else if(has_keyword_pattern(_it,begcode,endpycode,"makestring")){
+		  else if(matchDirective(_it,begcode,endpycode,Directive::Makestring)){
 			code += std::string(beg,_it2) + "AxialTree(";
 		    while(_it != endpycode && (*_it == ' ' || *_it == '\t') )++_it;
 		    char endproduction = '\n';
@@ -562,7 +769,7 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 		  break;
 		case 'u':
 		  _it2 = _it;
-          if(has_keyword_pattern(_it,begcode,endpycode,"undeclare")){
+          if(matchDirective(_it,begcode,endpycode,Directive::Undeclare)){
             code+=std::string(beg,_it2);
 			LpyParsing::ModNameList modules = LpyParsing::parse_modlist(_it,endpycode,false);
 			code+=" # "+std::string(_it2,_it);
@@ -579,7 +786,7 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 		  break;
 		case 'p':
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"production")){
+		  if(matchDirective(_it,begcode,endpycode,Directive::Production)){
 			// printf("-'%c' '%c'\n",*(_it2-1),*_it);
 			/*if ((_it2 != begcode && *(_it2-1) != '\n') || (_it == *_it != ' ' && *_it != ':' && *_it != '\t')){
 				// We are not in the production statement
@@ -587,13 +794,10 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 			}
 			else {*/
  				code+=std::string(beg,_it2);
-				toendlineC(_it,endpycode);
-				code+="# "+std::string(_it2,_it);
-				beg = _it;
-				mode = 0;
+				enterRuleSection(0, "# ");
 			// }
 		  }
-		  else if(has_keyword_pattern(_it,begcode,endpycode,"produce")){
+		  else if(matchDirective(_it,begcode,endpycode,Directive::Produce)){
 			  // LsysWarning("Cannot use 'produce' outside production body. Use 'nproduce' instead.",filename,lineno);
 			code += std::string(beg,_it2);
 			code += "return pproduce";
@@ -611,99 +815,63 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 		  break;
 		case 'd':
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"derivation length")){
-            code+=std::string(beg,_it2);
-			beg = _it;
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n')
-			  _it++;
-			if(_it!=endpycode && (*_it)==':'){
-			  _it++;
-			  beg = _it;
-			  toendline(_it,endpycode);
-			  if(beg != endpycode)
-                if (notOnlySpace(beg,_it)){
-                    code+=LsysContext::DerivationLengthVariable+" = "+std::string(beg,_it);
-                    max_derivation_lineno = lineno-1;
-                }
-                else LsysParserSyntaxError("Cannot find value for derivation length");
-              else LsysParserSyntaxError("Cannot find value for derivation length");
-			}
-            else LsysParserSyntaxError("Cannot find ':' after derivation length");
-			beg = _it;
+		  if(matchDirective(_it,begcode,endpycode,Directive::DerivationLength)){
+            const auto directive = readValueDirective(Directive::DerivationLength);
+            code.append(beg, _it2);
+            max_derivation_lineno = lineno;
+            consumeDirective(directive.end);
+            code += LsysContext::DerivationLengthVariable + " = " + directive.value();
+            beg = _it;
 		  }
 		  else toendlineA(_it,endpycode);
 		  break;
 		case 'l':
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"lpyimport")){
-            code+=std::string(beg,_it2);
-			beg = _it;
-			if(_it!=endpycode){
-			  _it++;
-			  beg = _it;
-			  toendline(_it,endpycode);
-			  if(beg != endpycode) {
-                if (notOnlySpace(beg,_it)){
-				  std::string modulename = LpyParsing::trim(std::string(beg,_it));
-				  addSubLsystem(modulename+".lpy");
-				}
-				else LsysParserSyntaxError("invalid module to import");
-			  }
-              else LsysParserSyntaxError("invalid module to import");
-			}
-            else LsysParserSyntaxError("invalid module to import");
-            code+="# "+std::string(_it2,_it);
-			beg = _it;
+		  if(matchDirective(_it,begcode,endpycode,Directive::Lpyimport)){
+            const auto directive = readImportDirective(_it, endpycode);
+            code.append(beg, _it2);
+            consumeDirective(directive.end);
+            if (directive.moduleName.empty())
+                LsysParserSyntaxError("invalid module to import");
+            else
+                addSubLsystem(directive.moduleName + ".lpy");
+            code += "# " + std::string(_it2, _it);
+            beg = _it;
 		  }
 		  else toendlineA(_it,endpycode);
 		  break;
 		case 'c':
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"consider")){
-            code+=std::string(beg,_it2);
-			beg = _it;
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n')
-			  _it++;
-			if(_it!=endpycode && (*_it)==':'){
-			  _it++;
-			  beg = _it;
-			  toendline(_it,endpycode);
-			  if(beg != endpycode)
-				  currentConsider = ConsiderFilter::consider(std::string(beg,_it));
-              else LsysParserSyntaxError("Cannot find value for consider");
-			}
-            else LsysParserSyntaxError("Cannot find ':' after consider");
-            code+="# "+std::string(_it2,_it);
-			beg = _it;
+		  if(matchDirective(_it,begcode,endpycode,Directive::Consider)){
+            const auto directive = readValueDirective(Directive::Consider);
+            code.append(beg, _it2);
+            consumeDirective(directive.end);
+            if (directive.valueBegin == endpycode)
+                LsysParserSyntaxError("Cannot find value for consider");
+            currentConsider = ConsiderFilter::consider(directive.value());
+            code += "# " + std::string(_it2, _it);
+            beg = _it;
 		  }
 		  else toendlineA(_it,endpycode);
 		  break;
 		case 'e':
           _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"endlsystem")){
+		  if(matchDirective(_it,begcode,endpycode,Directive::Endlsystem)){
             LsysParserSyntaxError("endlsystem found before production statement.");
 		  }
           else toendlineA(_it,endpycode);
 		  break;
 		case 'i':
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"ignore")){
-            code+=std::string(beg,_it2);
-			beg = _it;
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n')
-			  _it++;
-			if(_it!=endpycode && (*_it)==':'){
-			  _it++;
-			  beg = _it;
-			  toendline(_it,endpycode);
-			  if(beg != endpycode)
-				  currentConsider = ConsiderFilter::ignore(std::string(beg,_it));
-				// __context.ignore(std::string(beg,_it));
-              else LsysParserSyntaxError("Cannot find value for ignore");
-			}
-            else LsysParserSyntaxError("Cannot find ':' after ignore");
-            code+="# "+std::string(_it2,_it);
-			beg = _it;
+		  if(matchDirective(_it,begcode,endpycode,Directive::Ignore)){
+            const auto directive = readValueDirective(Directive::Ignore);
+            code.append(beg, _it2);
+            consumeDirective(directive.end);
+            if (directive.valueBegin == endpycode)
+                LsysParserSyntaxError("Cannot find value for ignore");
+            currentConsider = ConsiderFilter::ignore(directive.value());
+            code += "# " + std::string(_it2, _it);
+            beg = _it;
 		  }
 		  else toendlineA(_it,endpycode);
 		  break;
@@ -745,20 +913,20 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 		switch(*_it){
 		case 'e':
           _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"endlsystem")){
+		  if(matchDirective(_it,begcode,endpycode,Directive::Endlsystem)){
 			if(!rule.empty()){
               PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 			}
-			toendline(_it,endpycode);
+			consumeDirective(directiveLineEnd(_it, endpycode));
             code+="# "+std::string(_it2,_it);
 			mode = -1;
             beg = _it;
 		  }
-		  else if(has_keyword_pattern(_it,begcode,endpycode,"endgroup")){
+		  else if(matchDirective(_it,begcode,endpycode,Directive::Endgroup)){
 			if(!rule.empty()){
               PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 			}
-			toendline(_it,endpycode);
+			consumeDirective(directiveLineEnd(_it, endpycode));
             code+="# "+std::string(_it2,_it);
 			group = 0;
             beg = _it;
@@ -777,27 +945,14 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
               PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 		  }
 		  _it2 = _it;
-		  if(mode == 0 && has_keyword_pattern(_it,begcode,endpycode,"derivation length")){
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n')
-			  _it++;
-			if(_it!=endpycode && (*_it)==':'){
-			  _it++;
-			  beg = _it;
-			  toendline(_it,endpycode);
-			  if(beg != endpycode){
-                if (notOnlySpace(beg,_it))
-                    code+=LsysContext::DerivationLengthVariable+" = "+std::string(beg,_it);
-                else LsysParserSyntaxError("Cannot find value for derivation length");
-			  }
-              else LsysParserSyntaxError("Cannot find value for derivation length");
-			}
-            else LsysParserSyntaxError("Cannot find ':' after derivation length");
+		  if(mode == 0 && matchDirective(_it,begcode,endpycode,Directive::DerivationLength)){
+            const auto directive = readValueDirective(Directive::DerivationLength);
+            max_derivation_lineno = lineno;
+            consumeDirective(directive.end);
+            code += LsysContext::DerivationLengthVariable + " = " + directive.value();
 		  }
-		  else if(has_keyword_pattern(_it,begcode,endpycode,"decomposition")){
-			mode = 1;
-			toendlineC(_it,endpycode);
-            code+='#'+std::string(_it2,_it);
-			beg = _it;
+		  else if(matchDirective(_it,begcode,endpycode,Directive::Decomposition)){
+			enterRuleSection(1, "#");
 		  }
 		  else if(has_keyword_pattern(_it,begcode,endpycode,"def")){
 			mode = -1;
@@ -815,11 +970,8 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
             PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 		  }
 		  _it2 = _it;
-          if(has_keyword_pattern(_it,begcode,endpycode,"homomorphism")){
-			toendlineC(_it,endpycode);
-            code+="# "+std::string(_it2,_it);
-			beg = _it;
-			mode = 2;
+          if(matchDirective(_it,begcode,endpycode,Directive::Homomorphism)){
+			enterRuleSection(2, "# ");
 		  }
 		  else {
 			beg = _it;
@@ -832,26 +984,16 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
               PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 		  }
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"group")){
-            beg = _it;
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n')
-			  _it++;
-			if(_it!=endpycode && (*_it)==':'){
-              if (notOnlySpace(beg,_it)){
-                  group = __context.readInt(std::string(beg,_it));
-                  if (group < 0) {
-                      std::stringstream ss;
-                      ss << "Invalid value for group : ";
-                      ss << group << '.';
-                      LsysError(ss.str(),filename,lineno);
-                  }
-                  // else if(debug) std::cerr << "Use group " << group << " from line " << lineno << std::endl;
-              }
-              else LsysParserSyntaxError("Cannot find value for group");
-			  toendline(_it,endpycode);
-              code+="# "+std::string(_it2,_it);
-			}
-            else LsysParserSyntaxError("Cannot find value and ':' after group");
+		  if(matchDirective(_it,begcode,endpycode,Directive::Group)){
+            const auto directive = readValueDirective(Directive::Group);
+            group = __context.readInt(directive.value());
+            if (group < 0) {
+                std::stringstream message;
+                message << "Invalid value for group : " << group << '.';
+                LsysError(message.str(), filename, lineno);
+            }
+            consumeDirective(directive.end);
+            code += "# " + std::string(_it2, _it);
 		  }
 		  else {
 			beg = _it;
@@ -864,11 +1006,8 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
             PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 		  }
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"production")){
-			toendlineC(_it,endpycode);
-            code+="# "+std::string(_it2,_it);
-			beg = _it;
-			mode = 0;
+		  if(matchDirective(_it,begcode,endpycode,Directive::Production)){
+			enterRuleSection(0, "# ");
 		  }
 		  else {
 			beg = _it;
@@ -881,36 +1020,14 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
             PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 		  }
 		  _it2 = _it;
-		  if((mode == 1||mode == 2) && has_keyword_pattern(_it,begcode,endpycode,"maximum depth")){
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n')_it++;
-			if(_it!=endpycode && (*_it)==':'){
-			  _it++;
-			  beg = _it;
-			  toendline(_it,endpycode);
-              // code+='#'+std::string(_it2,_it);
-			  if(beg != endpycode){
-                  if (notOnlySpace(beg,_it)){
-                      std::string var;
-                      switch (mode){
-                        case 1:
-                            var = LsysContext::DecompositionMaxDepthVariable;
-                            decomposition_max_depth_lineno = lineno-1;
-                            break;
-                        case 2:
-                            var = LsysContext::HomomorphismMaxDepthVariable;
-                            homomorphism_max_depth_lineno = lineno-1;
-                            break;
-                        default:
-                            LsysParserSyntaxError("Maximum depth is not allowed for production");
-                            break;
-                      }   
-                    code+=var+" = "+std::string(beg,_it);
-                  }
-                else LsysParserSyntaxError("Cannot find value for maximum depth");
-			  }
-              else LsysParserSyntaxError("Cannot find value for maximum depth");
-			}
-            else LsysParserSyntaxError("Cannot find ':' after maximum depth");
+		  if((mode == 1||mode == 2) && matchDirective(_it,begcode,endpycode,Directive::MaximumDepth)){
+            const auto directive = readValueDirective(Directive::MaximumDepth);
+            const bool decomposition = mode == 1;
+            (decomposition ? decomposition_max_depth_lineno : homomorphism_max_depth_lineno) = lineno;
+            consumeDirective(directive.end);
+            const auto& variable = decomposition ? LsysContext::DecompositionMaxDepthVariable
+                                                 : LsysContext::HomomorphismMaxDepthVariable;
+            code += variable + " = " + directive.value();
 		  }
 		  else {
 			beg = _it;
@@ -923,20 +1040,12 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
             PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 		  }
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"consider")){
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n')_it++;
-			if(_it!=endpycode && (*_it)==':'){
-			  _it++;
-			  beg = _it;
-			  toendline(_it,endpycode);
-              code+="# "+std::string(_it2,_it);
-			  if(beg != endpycode)
-				  currentConsider = ConsiderFilter::consider(std::string(beg,_it));
-			  else currentConsider = ConsiderFilterPtr();
-				  //__context.consider(std::string(beg,_it));
-              // else LsysParserSyntaxError("Cannot find value for consider");
-			}
-            else LsysParserSyntaxError("Cannot find ':' after consider");
+		  if(matchDirective(_it,begcode,endpycode,Directive::Consider)){
+            const auto directive = readValueDirective(Directive::Consider);
+            consumeDirective(directive.end);
+            code += "# " + std::string(_it2, _it);
+            if (directive.valueBegin == endpycode) currentConsider = ConsiderFilterPtr();
+            else currentConsider = ConsiderFilter::consider(directive.value());
 		  }
 		  else {
 			beg = _it;
@@ -949,29 +1058,15 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
             PROCESS_RULE(rule,code,addedcode,mode,group,currentConsider)
 		  }
 		  _it2 = _it;
-		  if(has_keyword_pattern(_it,begcode,endpycode,"ignore")){
-			while( _it!=endpycode && (*_it)!=':' && (*_it)!='\n')_it++;
-			if(_it!=endpycode && (*_it)==':'){
-			  _it++;
-			  beg = _it;
-			  toendline(_it,endpycode);
-              code+="# "+std::string(_it2,_it);
-			  if(beg != endpycode) {
-				 // printf("find ignore at line %i : %s\n",lineno,std::string(beg,_it).c_str());
- 			  	 currentConsider = ConsiderFilter::ignore(std::string(beg,_it-1));
-				 // printf("Current consider %i at line %i : %s \n",lineno,currentConsider.get(),(currentConsider?currentConsider->str().c_str():""));
-			  }
-			  else currentConsider = ConsiderFilterPtr();
-				  // __context.ignore(std::string(beg,_it));
-			  // else LsysParserSyntaxError("Cannot find value for ignore");
-			}
-            else LsysParserSyntaxError("Cannot find ':' after ignore");
+		  if(matchDirective(_it,begcode,endpycode,Directive::Ignore)){
+            const auto directive = readValueDirective(Directive::Ignore);
+            consumeDirective(directive.end);
+            code += "# " + std::string(_it2, _it);
+            if (directive.valueBegin == endpycode) currentConsider = ConsiderFilterPtr();
+            else currentConsider = ConsiderFilter::ignore(std::string(directive.valueBegin, directive.valueEnd - 1));
 		  }
-		  if(has_keyword_pattern(_it,begcode,endpycode,"interpretation")){
-			toendlineC(_it,endpycode);
-            code+="# "+std::string(_it2,_it);
-			beg = _it;
-			mode = 2;
+		  if(matchDirective(_it,begcode,endpycode,Directive::Interpretation)){
+			enterRuleSection(2, "# ");
 		  }
 		  else {
 			beg = _it;
@@ -1122,62 +1217,126 @@ Lsystem::set( const std::string&   _rules , std::string * pycode,
 
 /*---------------------------------------------------------------------------*/
 
-void LsysRule::set( const std::string& rule ){
-  std::string::const_iterator endheader = rule.begin();
-  std::string::const_iterator startcode = endheader;
-  bool foundendheader = false;
-  bool arrow = false;
-  std::string staticarrowtxt = "-static->";
-  std::string staticmarkertxt = "@static";
-  bool staticrule = false;
-  // count number of lines
-  __codelength = 0;
-  for(std::string::const_iterator it = rule.begin(); it != rule.end(); ++it)
-	  if (*it == '\n') ++__codelength;
-  // identify header
-  while(endheader != rule.end() && !foundendheader){
-	  if(*endheader==':') { 
-		  foundendheader = true; 
-		  startcode = endheader+1; 
-		  std::string::const_iterator marker = startcode;
-		  while (marker!= rule.end() && (*marker == ' ' || *marker == '\t'))++marker;
-		  if(distance(marker,rule.end())>=staticmarkertxt.size() && std::string(marker,marker+staticmarkertxt.size()) == staticmarkertxt){
-			startcode = marker+staticmarkertxt.size();
-			staticrule = true;
-		  }
-	  }
-	  else if(*endheader=='-' && (endheader==rule.begin()|| *(endheader-1)!='-' )){
-		  if(distance(endheader,rule.end())>=2 && *(endheader+1) == '-' && *(endheader+2) == '>'){
-			foundendheader = true;
-			arrow = true;
-			startcode = endheader+3;
-		  }
-		  else if (distance(endheader,rule.end())>=staticarrowtxt.size() && std::string(endheader,endheader+staticarrowtxt.size()) == staticarrowtxt){
-			foundendheader = true;
-			arrow = true;
-			staticrule = true;
-			startcode = endheader+staticarrowtxt.size();
-		  }
-		  else endheader++;
-      } 
-      else endheader++;
-  }
-  if(endheader == rule.end()){
-	LsysError("Ill-formed Rule : unfound delimiter ':' in "+rule,"",lineno);
-  }
-  // identify successor code
-  if (arrow)__definition = " --> "+std::string(startcode,rule.end());
-  else __definition =  std::string(startcode,rule.end());
-  // parse header
-  std::string header(rule.begin(),endheader);
-  parseHeader(header);
+namespace {
+
+struct RuleHeader {
+    std::string predecessor;
+    std::string leftContext;
+    std::string newLeftContext;
+    std::string rightContext;
+    std::string newRightContext;
+    std::string::const_iterator body;
+    bool arrow = false;
+    bool isStatic = false;
+};
+
+using RuleHeaderField = std::string RuleHeader::*;
+
+struct RuleHeaderProduction {
+    std::initializer_list<const char*> separators;
+    std::initializer_list<RuleHeaderField> fields;
+};
+
+const RuleHeaderProduction ruleHeaderProductions[] = {
+#include "rule_header_productions.inc"
+};
+
+RuleHeader readRuleHeader(const std::string& rule, int lineno)
+{
+    RuleHeader header;
+    const auto end = rule.end();
+    header.body = end;
+    auto section = rule.begin();
+    auto it = section;
+    std::vector<std::string> separators;
+    std::vector<std::string> patterns;
+    const std::string staticArrow = "-static->";
+    const std::string staticMarker = "@static";
+
+    while (it != end) {
+        const auto offset = it - rule.begin();
+        if (*it == ':') {
+            header.body = it + 1;
+            auto marker = header.body;
+            while (marker != end && (*marker == ' ' || *marker == '\t')) ++marker;
+            if (rule.compare(marker - rule.begin(), staticMarker.size(), staticMarker) == 0) {
+                header.body = marker + staticMarker.size();
+                header.isStatic = true;
+            }
+            break;
+        }
+        if (*it == '-' && (it == rule.begin() || *(it - 1) != '-')) {
+            if (rule.compare(offset, 3, "-->") == 0) {
+                header.body = it + 3;
+                header.arrow = true;
+                break;
+            }
+            if (rule.compare(offset, staticArrow.size(), staticArrow) == 0) {
+                header.body = it + staticArrow.size();
+                header.arrow = true;
+                header.isStatic = true;
+                break;
+            }
+        }
+        if (*it == '(') {
+            it = readPythonFragment(it + 1, end, ")", lineno);
+            if (it != end) ++it;
+            continue;
+        }
+        if (*it != '<' && *it != '>') {
+            it = next_token(it, end, false);
+            continue;
+        }
+
+        const char separator = *it;
+        const bool doubled = it + 1 != end && *(it + 1) == separator;
+        patterns.emplace_back(section, it);
+        separators.emplace_back(doubled ? 2 : 1, separator);
+        it += doubled ? 2 : 1;
+        section = it;
+    }
+
+    if (it == end) {
+        LsysError("Ill-formed Rule : unfound delimiter ':' in " + rule, "", lineno);
+        return header;
+    }
+
+    patterns.emplace_back(section, it);
+    for (const auto& production : ruleHeaderProductions) {
+        if (!std::equal(separators.begin(), separators.end(),
+                        production.separators.begin(), production.separators.end()))
+            continue;
+        auto pattern = patterns.begin();
+        for (const auto field : production.fields)
+            header.*field = std::move(*pattern++);
+        if (header.predecessor.empty())
+            LsysError("Ill-formed Rule Header : No Predecessor found : " + rule, "", lineno);
+        return header;
+    }
+    LsysError("Ill-formed Rule Header : " + rule, "", lineno);
+    return header;
+}
+
+} // namespace
+
+void LsysRule::set(const std::string& rule)
+{
+  const RuleHeader header = readRuleHeader(rule, lineno);
+  __codelength = std::count(rule.begin(), rule.end(), '\n');
+  __predecessor = PatternString(header.predecessor, lineno);
+  if (!header.leftContext.empty()) __leftcontext = PatternString(header.leftContext, lineno);
+  if (!header.newLeftContext.empty()) __newleftcontext = PatternString(header.newLeftContext, lineno);
+  if (!header.rightContext.empty()) __rightcontext = PatternString(header.rightContext, lineno);
+  if (!header.newRightContext.empty()) __newrightcontext = PatternString(header.newRightContext, lineno);
+  __definition.assign(header.body, rule.end());
+  if (header.arrow) __definition.insert(0, " --> ");
   __hasquery = __predecessor.hasRequestModule() 
 			|| __newleftcontext.hasRequestModule()
 			|| __leftcontext.hasRequestModule()
 			|| __newrightcontext.hasRequestModule()
 			|| __rightcontext.hasRequestModule();
   // check variables
-  if(staticrule) setStatic();
+  if (header.isStatic) setStatic();
   else {
 	if (LsysContext::current()->optimizationLevel >= 2)
 		keepOnlyRelevantVariables();
@@ -1187,114 +1346,139 @@ void LsysRule::set( const std::string& rule ){
 
 /*---------------------------------------------------------------------------*/
 
-std::string 
-LsysRule::getCoreCode() {
+namespace {
+
+enum class RuleBodyKind {
+#define LPY_RULE_BODY(kind, keyword, payload) kind,
+#include "rule_body_syntax.inc"
+#undef LPY_RULE_BODY
+};
+enum class RuleBodyPayload { InlineModules, ModuleString, ContextQuery };
+
+struct RuleBodySyntax {
+    RuleBodyKind kind;
+    std::string keyword;
+    RuleBodyPayload payload;
+};
+
+const RuleBodySyntax* matchRuleBodyConstruct(SourceIterator& it, SourceIterator begin, SourceIterator end)
+{
+    static const RuleBodySyntax constructs[] = {
+#define LPY_RULE_BODY(kind, keyword, payload) {RuleBodyKind::kind, keyword, RuleBodyPayload::payload},
+#include "rule_body_syntax.inc"
+#undef LPY_RULE_BODY
+    };
+    const auto identifier = [](char c) {
+        return c == '_' || isalnum(static_cast<unsigned char>(c)) || static_cast<unsigned char>(c) >= 128;
+    };
+    for (const auto& syntax : constructs) {
+        if (*it != syntax.keyword.front() || end - it < syntax.keyword.size())
+            continue;
+        const auto after = it + syntax.keyword.size();
+        if (syntax.kind != RuleBodyKind::Arrow &&
+            ((it != begin && identifier(*(it - 1))) || (after != end && identifier(*after))))
+            continue;
+        if (std::equal(it, after, syntax.keyword.begin())) {
+            it = after;
+            return &syntax;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
+std::string LsysRule::getCoreCode()
+{
   std::stringstream res;
   int llineno = 0;
   std::string definition;
-  std::string::const_iterator _beg = __definition.begin();
-  std::string::const_iterator _end = __definition.end();
-  std::string::const_iterator _lastit = __definition.begin();
-  std::string::const_iterator _it = _lastit;
-  while( _it != _end){
-	std::string::const_iterator _cit = _it;
-	if (*_it == '\n') { ++llineno; _it++;}
-	else if (*_it == '#') { while(_it != _end && *_it != '\n') _it++; }
-	else if (*_it == '\'') 
-	{ 
-	  _it++;  
-	  while(_it != _end && *_it != '\'') { if (*_it == '\n') { ++llineno; } _it++; } 
-	  if (_it != _end) _it++;  
-	}
-	else if (*_it == '"') 
-	{ 
-		_it++;  
-		while(_it != _end && *_it != '"') { if (*_it == '\n') { ++llineno; } _it++; } 
-	    if (_it != _end) _it++;  
-	}
-	else if (*_it == '-' && std::distance<std::string::const_iterator>(_it,_end)> 3){
-	  if(std::string(_it,_it+3) == "-->"){
-		definition.insert(definition.end(),_lastit,_it);
-		_it += 3;
-		size_t pprod_id;
-		definition += "return ";
-		definition += "pproduce";
-		definition += LpyParsing::lstring2pyparam(_it,_end,'\n',lineno==-1?lineno:lineno+llineno,&pprod_id);
-		_lastit = _it;
-		if (LsysContext::current()->optimizationLevel >= 1 &&!ParametricProduction::get(pprod_id)->hasArgs()) 
-			setStatic();
-	  }
-	  else _it++;
-	}
-	else if (has_keyword_pattern(_it,_beg,_end,"produce") ) {
-		// if (*_it == 'p' && std::distance<std::string::const_iterator>(_it,_end)> 7 && (_it == _beg || !isalnum(*(_it-1)) && *(_it-1) != '_')){
-	    // if(std::string(_it,_it+7) == "produce"){
-		definition.insert(definition.end(),_lastit,_cit);
-		while(_it != _end && (*_it == ' ' || *_it == '\t') )++_it;
-		char endproduction = '\n';
-		if(*_it == '(') { endproduction = ')'; ++_it; }
-		definition += "return ";
-		definition += "pproduce";
-		definition += LpyParsing::lstring2pyparam(_it,_end,endproduction,lineno==-1?lineno:lineno+llineno);
-		if (endproduction == ')') ++_it;
-		_lastit = _it;
-	  // }
-	  // else _it++;
-	}
-	else if(*_it == 'm' && std::distance<std::string::const_iterator>(_it,_end)> 10){
-	  if(std::string(_it,_it+10) == "makestring"){
-		 definition.insert(definition.end(),_lastit,_it);
-		 _it += 10;
-		 while(_it != _end && (*_it == ' ' || *_it == '\t') )++_it;
-		 char endproduction = '\n';
-		 if(*_it == '(') { endproduction = ')'; ++_it; }
-		 definition += "AxialTree(";
-         definition += LpyParsing::lstring2py(_it,_end,endproduction,lineno==-1?lineno:lineno+llineno);
-         definition += ')';
- 		 if (endproduction == ')') ++_it;
-		 _lastit = _it;
-      }
-      else _it++;
+  const auto begin = __definition.cbegin();
+  const auto _end = __definition.cend();
+  auto copied = begin;
+  auto it = begin;
+  while (it != _end) {
+    if (*it == '\n') {
+        ++llineno;
+        ++it;
+        continue;
     }
-	else if(*_it == 'n' && std::distance<std::string::const_iterator>(_it,_end)> 8){
-	  if(std::string(_it,_it+8) == "nproduce"){
-		definition.insert(definition.end(),_lastit,_it);
-		_it += 8;
-		while(_it != _end && (*_it == ' ' || *_it == '\t') )++_it;
-		char endproduction = '\n';
-		if(*_it == '(') { endproduction = ')'; ++_it; }
-		definition += "pproduce";
-		definition += LpyParsing::lstring2pyparam(_it,_end,endproduction,lineno==-1?lineno:lineno+llineno);
-		if (endproduction == ')') ++_it;
-		_lastit = _it;
-	  }
-	  else _it++;
-	}
-    else if (has_keyword_pattern(_it,_beg,_end,"InLeftContext") || has_keyword_pattern(_it,_beg,_end,"InRightContext")){
-		definition.insert(definition.end(),_lastit,_cit);
-		while(_it != _end && (*_it == ' ' || *_it == '\t') )++_it;
-		
-		if(*_it != '(') LsysError("Cannot find opening bracket of InContext","",lineno==-1?lineno:lineno+llineno);
-		std::string::const_iterator eit = next_token(_it,_end);
-		std::string::const_iterator epit = eit-1;
-		while (epit != _it && *epit != ',') {
-			--epit;
-			if (epit != _it && *epit == ')') 
-				while (epit != _it && *epit != '(') --epit;
-		}
-		if (epit == _it){
-			LsysWarning("No parameter dictionnay found in arguments. ","",lineno==-1?lineno:lineno+llineno);
-			epit = eit-1;
-		}
+    if (*it == '#') {
+        it = std::find(it, _end, '\n');
+        continue;
+    }
+    if (*it == '\'' || *it == '"') {
+        const auto endString = readPythonString(it, _end).first;
+        llineno += std::count(it, endString, '\n');
+        it = endString;
+        continue;
+    }
 
-		PatternString q(std::string(_it+1,epit),lineno==-1?lineno:lineno+llineno);
-		size_t pid = PatternStringManager::get().register_pattern(q);
-		definition += std::string("p")+std::string(_cit,_it+1)+TOOLS(number)(pid)+std::string(epit,eit);
-		_lastit = eit;
+    const auto start = it;
+    const auto* syntax = matchRuleBodyConstruct(it, begin, _end);
+    if (!syntax) {
+        ++it;
+        continue;
     }
-	else _it++;
+
+    definition.append(copied, start);
+    const int sourceLine = lineno == -1 ? lineno : lineno + llineno;
+    const auto kind = syntax->kind;
+    if (syntax->payload == RuleBodyPayload::ContextQuery) {
+        while (it != _end && (*it == ' ' || *it == '\t')) ++it;
+        if (it == _end || *it != '(') {
+            LsysError("Cannot find opening bracket of InContext", "", sourceLine);
+            break;
+        }
+        const auto endQuery = next_token(it, _end);
+        if (*(endQuery - 1) != ')') {
+            LsysError("Cannot find closing bracket of InContext", "", sourceLine);
+            break;
+        }
+        auto parameters = endQuery - 1;
+        while (parameters != it && *parameters != ',') {
+            --parameters;
+            if (parameters != it && *parameters == ')')
+                while (parameters != it && *parameters != '(') --parameters;
+        }
+        if (parameters == it) {
+            LsysWarning("No parameter dictionnay found in arguments. ", "", sourceLine);
+            parameters = endQuery - 1;
+        }
+
+        PatternString query(std::string(it + 1, parameters), sourceLine);
+        const size_t id = PatternStringManager::get().register_pattern(query);
+        definition += "p" + std::string(start, it + 1) + TOOLS(number)(id);
+        definition.append(parameters, endQuery);
+        it = endQuery;
+    }
+    else if (syntax->payload == RuleBodyPayload::InlineModules) {
+        size_t productionId;
+        definition += "return pproduce" +
+                      LpyParsing::lstring2pyparam(it, _end, '\n', sourceLine, &productionId);
+        if (LsysContext::current()->optimizationLevel >= 1 &&
+            !ParametricProduction::get(productionId)->hasArgs())
+            setStatic();
+    }
+    else {
+        while (it != _end && (*it == ' ' || *it == '\t')) ++it;
+        char delimiter = '\n';
+        if (it != _end && *it == '(') {
+            delimiter = ')';
+            ++it;
+        }
+        if (kind == RuleBodyKind::Makestring)
+            definition += "AxialTree(" + LpyParsing::lstring2py(it, _end, delimiter, sourceLine) + ")";
+        else {
+            if (kind == RuleBodyKind::Produce) definition += "return ";
+            definition += "pproduce" + LpyParsing::lstring2pyparam(it, _end, delimiter, sourceLine);
+        }
+        if (delimiter == ')' && it != _end) ++it;
+    }
+    llineno += std::count(start, it, '\n');
+    copied = it;
   }
-  if(_lastit!=_it)definition += std::string(_lastit,_it);
+  definition.append(copied, _end);
   if(definition.empty()) res << "\t\tpass\n";
   else {
 	res << definition;
@@ -1317,78 +1501,6 @@ LsysRule::getCoreCode() {
 
 /*---------------------------------------------------------------------------*/
 	
-// cg < ncg << pred >> ncd > cd
-void 
-LsysRule::parseHeader( const std::string& header){
-  std::string::const_iterator it = header.begin();
-  std::string::const_iterator beg = header.begin();
-  std::string::const_iterator end = header.end();
-  std::string cg;
-  std::string ncg;
-  std::string pred;
-  std::string ncd;
-  std::string cd;
-  bool begncd = false;
-  while(it != end){
-	if(*it == '<'){
-
-	  if(!pred.empty())LsysError("Ill-formed Rule Header : "+header,"",lineno);
-	  if(*(it+1) == '<'){
-		if(ncg.empty())ncg = std::string(beg,it);
-		else LsysError("Ill-formed Rule Header : "+header,"",lineno);
-		it++;
-	  }
-	  else {
-		if(cg.empty()) cg = std::string(beg,it);
-		else LsysError("Ill-formed Rule Header : "+header,"",lineno);
-	  }
-	  beg = it+1;
-	}
-
-	else if(*it == '>'){
-		
-		if(*(it+1) == '>') {
-          if (begncd || !ncd.empty())LsysError("Ill-formed Rule Header : Two new left contexts found : "+header,"",lineno);
-          else { 
-              if(pred.empty()) pred = std::string(beg,it); 
-              else LsysError("Ill-formed Rule Header : Two Predecessors found : "+header,"",lineno);          
-              begncd = true; it++; 
-          }
-      }
-      else {
-          if (begncd) { 
-              ncd = std::string(beg,it); begncd = false;  }
-          else {
-            if(pred.empty()) pred = std::string(beg,it);
-            else LsysError("Ill-formed Rule Header : Two Predecessors found : "+header,"",lineno);
-          }
-      }
-      if(pred.empty())LsysError("Ill-formed Rule Header : No Predecessor found : "+header,"",lineno);
-	  beg = it+1;
-    }
-	it = next_token(it,end,false);
-	// it++;
-  }
-  if(pred.empty()){
-	pred = std::string(beg,it);
-	if(pred.empty()) LsysError("Ill-formed Rule Header : No Predecessor found : "+header,"",lineno);
-  }
-  else if (beg !=end){
-      if (begncd)ncd = std::string(beg,it);
-      else cd = std::string(beg,it);
-  }
-  if (!ncg.empty() && !ncd.empty())LsysError("Ill-formed Rule Header : New left and right contexts found : "+header,"",lineno);
-
-  __predecessor = PatternString(pred,lineno);
-  if(!cg.empty())__leftcontext = PatternString(cg,lineno);
-  if(!ncg.empty())__newleftcontext = PatternString(ncg,lineno);
-  if(!cd.empty())__rightcontext = PatternString(cd,lineno);
-  if(!ncd.empty())__newrightcontext = PatternString(ncd,lineno);
-}
-
-
-/*---------------------------------------------------------------------------*/
-
 std::string LpyParsing::lstring2py(const std::string& lcode,
 				 std::string::const_iterator& beg)
 { return lstring2py(beg,lcode.end()); }
@@ -1483,104 +1595,97 @@ std::string LpyParsing::lstring2pyparam( std::string::const_iterator& beg,
 /*---------------------------------------------------------------------------*/
 
 
-std::pair<size_t,std::string>
-parseAModule( std::string::const_iterator& _it,
-			  std::string::const_iterator endpos,
-			  bool production,
-			  int lineno)
+namespace {
+
+enum class ModuleStringMode { Production, Pattern };
+enum class ModuleToken { Module, GetModule, Surface };
+enum class ModuleLookahead { End, Arguments, Other };
+enum class ModuleSyntax { Bare, WithArguments, Variable, Capture, Surface };
+
+constexpr ModuleSyntax moduleStringSyntax[2][3][3] = {
+#include "module_string_syntax.inc"
+};
+
+std::pair<size_t, std::string>
+parseAModule(SourceIterator& it, SourceIterator end, ModuleStringMode mode, int lineno)
 {
-	std::string::const_iterator _it2 = _it;
-	bool first = true;
-	size_t mod_id;
-	size_t namesize = 0;
-	std::string mod_args;
-	ModuleClassPtr mod = ModuleClassTable::get().parse(_it,endpos,namesize);
-	if (!mod){
-		LsysSyntaxError(std::string("Invalid symbol '")+*_it+"' in AxialTree.","",lineno);
-		// mod = ModuleClassTable::get().declare(*_it); ++_it; 
-	}
-	else {_it += namesize; }
-	while(_it != endpos && (*_it == ' ' || *_it == '\t'))++_it;
-	mod_id = mod->getId();
-	bool has_arg = false;
-	bool isNewExpression = false; 
-	if (mod == ModuleClass::GetModule  ){
-		if (_it != endpos && *_it != '('){
-			has_arg = true;
-			if (!production){
-				// parse the rest as if it was a module
-				std::pair<size_t,std::string> res = parseAModule(_it,endpos,production,lineno);
-				ModuleClassPtr lmod = ModuleClassTable::get().find(res.first);
-				if (lmod == ModuleClass::GetModule)
-					LsysSyntaxError(std::string("Invalid construction for get module '$")+lmod->name+"'.","",lineno);
-				// args in this case are made of the variable name and the module class name
-				mod_args = std::string(res.second.begin(),res.second.end())+","+lmod->name;
-			}
-			else {
-				  // for production, get variable name after. Should be separated from the rest with a space
-				 _it2 = _it;
-				 // a variable name is made of _ or alpbetic or numeric char 
-				 while(_it != endpos && (*_it == '_' || isalnum(*_it))) ++_it;
-				 mod_args = std::string(_it2,_it);
-			}
-			isNewExpression = true;
-		}
-	}
-	if(!isNewExpression) {
-		if (mod == ModuleClass::CpfgSurface){
-			if (_it != endpos && *_it != '('){
-				has_arg = true;
-				mod_args = std::string("'")+*_it+"',";
-				_it++;
-			}
-		}
-		if(_it != endpos && *_it == '('){
-			// look for parameters
-			++_it;
-			if(_it == endpos) LsysSyntaxError("Invalid syntax in AxialTree","",lineno);
-			_it2 = _it;
-			std::string::const_iterator lastcoma = _it2;
-			int parenthesis = 0;
-			while(_it != endpos && (*_it != ')' || parenthesis > 0)){
-				switch(*_it){
-					case ')': parenthesis--; break;
-					case '(': parenthesis++; break;
-					case '#': while(_it != endpos && *_it != '\n')++_it;break;
-					case '"': while(_it != endpos && *_it != '"')++_it;break;
-					case '\'': while(_it != endpos && *_it != '\'')++_it;break;
-					case ',': lastcoma = _it;break;
-					default: break;
-				}
-				++_it;
-				if(_it == endpos)
-					LsysSyntaxError("Invalid syntax in AxialTree","",lineno);
-			}
-			if(_it != endpos)_it++;
-			bool without_unpacking = true;
-			if(lastcoma!= endpos && production){
-				// Simulation of unpacking of arguments
-				if(*lastcoma == ',')++lastcoma;
-				while(lastcoma != endpos && (*lastcoma == ' ' || *lastcoma == '\t') )++lastcoma;
-				if(*lastcoma == '*'){
-					std::string::const_iterator lit = lastcoma+1;
-                    if(*lit == '*') ++lit;
-					if (LpyParsing::isValidVariableName(lit,_it-1)){
-						mod_args += std::string(_it2,lastcoma);
-						mod_args += "PackedArgs(";
-						mod_args += std::string(lit,_it);
-						without_unpacking = false;
-					}
-				}
-			}
-			if(without_unpacking)  mod_args += std::string(_it2,_it-1);
-			has_arg = (mod_args.size() > 0);
-		}
-	}
-	std::pair<size_t,std::string> amod;
-	amod.first = mod_id;
-	amod.second = mod_args;
-	return amod;
+    size_t nameSize = 0;
+    const ModuleClassPtr module = ModuleClassTable::get().parse(it, end, nameSize);
+    if (!module) {
+        LsysSyntaxError(std::string("Invalid symbol '") + *it + "' in AxialTree.", "", lineno);
+        ++it;
+        return {};
+    }
+    it += nameSize;
+    while (it != end && (*it == ' ' || *it == '\t')) ++it;
+
+    ModuleToken token = ModuleToken::Module;
+    if (module == ModuleClass::GetModule) token = ModuleToken::GetModule;
+    else if (module == ModuleClass::CpfgSurface) token = ModuleToken::Surface;
+
+    ModuleLookahead lookahead = ModuleLookahead::End;
+    if (it != end)
+        lookahead = *it == '(' ? ModuleLookahead::Arguments : ModuleLookahead::Other;
+    const auto syntax = moduleStringSyntax[static_cast<size_t>(mode)]
+                                         [static_cast<size_t>(token)]
+                                         [static_cast<size_t>(lookahead)];
+    const size_t moduleId = module->getId();
+    std::string args;
+    switch (syntax) {
+    case ModuleSyntax::Bare:
+        return {moduleId, args};
+    case ModuleSyntax::Variable: {
+        const auto variable = it;
+        while (it != end && (*it == '_' || isalnum(static_cast<unsigned char>(*it)))) ++it;
+        return {moduleId, std::string(variable, it)};
+    }
+    case ModuleSyntax::Capture: {
+        const auto captured = parseAModule(it, end, mode, lineno);
+        const ModuleClassPtr capturedClass = ModuleClassTable::get().find(captured.first);
+        if (!capturedClass) return {moduleId, args};
+        if (capturedClass == ModuleClass::GetModule)
+            LsysSyntaxError("Invalid construction for get module '$" + capturedClass->name + "'.", "", lineno);
+        return {moduleId, captured.second + "," + capturedClass->name};
+    }
+    case ModuleSyntax::Surface:
+        args = std::string("'") + *it + "',";
+        ++it;
+        if (it == end || *it != '(') return {moduleId, args};
+        break;
+    case ModuleSyntax::WithArguments:
+        break;
+    }
+
+    const auto argsBegin = ++it;
+    auto lastArg = argsBegin;
+    auto argsEnd = readPythonFragment(argsBegin, end, ",)", lineno);
+    while (argsEnd != end && *argsEnd == ',') {
+        lastArg = argsEnd + 1;
+        argsEnd = readPythonFragment(lastArg, end, ",)", lineno);
+    }
+    if (argsEnd == end) {
+        it = end;
+        LsysSyntaxError("Invalid syntax in AxialTree: expected ')'.", "", lineno);
+        return {moduleId, args};
+    }
+    it = argsEnd + 1;
+
+    while (lastArg != argsEnd && (*lastArg == ' ' || *lastArg == '\t')) ++lastArg;
+    if (mode == ModuleStringMode::Production && lastArg != argsEnd && *lastArg == '*') {
+        auto variable = lastArg + 1;
+        if (variable != argsEnd && *variable == '*') ++variable;
+        if (variable != argsEnd && LpyParsing::isValidVariableName(variable, argsEnd)) {
+            args.append(argsBegin, lastArg);
+            args += "PackedArgs(";
+            args.append(variable, it);
+            return {moduleId, args};
+        }
+    }
+    args.append(argsBegin, argsEnd);
+    return {moduleId, args};
 }
+
+} // namespace
 
 std::vector<std::pair<size_t,std::string> > 
 LpyParsing::parselstring( std::string::const_iterator& beg,
@@ -1589,7 +1694,7 @@ LpyParsing::parselstring( std::string::const_iterator& beg,
 					  int lineno,
 					  bool production)
 {
-  // std::cerr << "parse '" << std::string(beg,endpos) << "'" << std::endl;
+  const auto mode = production ? ModuleStringMode::Production : ModuleStringMode::Pattern;
   std::vector<std::pair<size_t,std::string> > result;
   std::string::const_iterator _it = beg;
   while(_it != endpos && (*_it == ' ' || *_it == '\t'))_it++;
@@ -1618,7 +1723,7 @@ LpyParsing::parselstring( std::string::const_iterator& beg,
 	}
 #endif
 	else {		
-		result.push_back(parseAModule(_it,endpos,production,lineno));
+		result.push_back(parseAModule(_it,endpos,mode,lineno));
 	}
   } // end while
   beg = _it;
@@ -1627,59 +1732,86 @@ LpyParsing::parselstring( std::string::const_iterator& beg,
 
 /*---------------------------------------------------------------------------*/
 
-LpyParsing::ModDeclarationList 
-LpyParsing::parse_moddeclist(std::string::const_iterator& beg,
-						  std::string::const_iterator endpos,
-						  char delim)
+namespace {
+
+#include "module_declaration_syntax.inc"
+
+bool isModuleDeclarationEnd(char c, char delimiter)
 {
-  size_t nb = 0;
-  ModDeclarationList result;
-  std::string::const_iterator _it = beg;
-  while(_it != endpos && *_it != delim){
-	  ++nb; 
-	  while (_it != endpos &&(*_it == ' ' || *_it == '\t'))++_it;
-	  if (_it == endpos || *_it == delim || *_it == '\n' || *_it == ':' || *_it == '#') break;
-	  if (nb != 1){
-		  if(*_it != ',') LsysSyntaxError(std::string("Invalid syntax in module declaration: Wait for ','instead of '")+*_it+"'");
-		  ++_it;
-	  }
-	  while (_it != endpos &&(*_it == ' ' || *_it == '\t'))++_it;
-	  if (_it == endpos || *_it == delim || *_it == '\n' || *_it == ':' || *_it == '#') break;
-	  std::string::const_iterator bm = _it;
-	  while(_it != endpos && *_it != ','  && *_it != ' ' && *_it != '\t' 
-		                  && *_it != '\n' && *_it != ':' && *_it != '=' 
-		                  && *_it != '('  && *_it != '#'  && *_it != delim) ++_it;
-	  std::string name(bm,_it);
-	  if(name.empty())  LsysSyntaxError("Invalid empty name in declaration of "+ PGL_NAMESPACE_NAME::number(nb)+" module.");
-	  else { result.push_back(ModDeclaration(name)); }
-	  while (_it != endpos && (*_it == ' ' || *_it == '\t'))++_it;
-	  if(_it == endpos) break;
-	  if(*_it != ',' && *_it != '\n' && *_it != ':' && *_it != '=' && *_it != '(' && *_it != '#')
-		  LsysSyntaxError("Invalid syntax in module declaration: Wait for ',','=',':','(','#'.");
-	  if(*_it == ':' || *_it == '#' || *_it == '\n') break;
-	  switch(*_it){
-		case '=':
-			++_it;
-			while (_it == endpos && (*_it == ' ' || *_it == '\t'))++_it;
-			bm = _it;
-			while (_it != endpos && (*_it == '_' || isalnum(*_it)))++_it;
-			result.back().alias = true;
-			result.back().parameters = std::string(bm,_it);
-			break;
-		case '(':
-			bm = _it+1;
-			_it = next_token(_it,endpos);
-			if(*(_it-1) != ')')
-				LsysSyntaxError("Invalid syntax in module declaration: Wait for ')'.");
-			result.back().parameters = std::string(bm,_it-1);
-			break;
-		case ',':
-		default:
-			break;
-	  }
- }
-  beg = _it;
-  return result;
+    return c == delimiter || c == '\n' || c == ModuleAttributesMarker || c == '#';
+}
+
+} // namespace
+
+LpyParsing::ModDeclarationList
+LpyParsing::parse_moddeclist(std::string::const_iterator& beg,
+                            std::string::const_iterator endpos,
+                            char delim)
+{
+    ModDeclarationList result;
+    auto it = beg;
+    const auto skipSpace = [&] {
+        while (it != endpos && (*it == ' ' || *it == '\t')) ++it;
+    };
+
+    while (it != endpos) {
+        skipSpace();
+        if (it == endpos || isModuleDeclarationEnd(*it, delim)) break;
+        if (!result.empty()) {
+            if (*it != ModuleListSeparator) {
+                LsysSyntaxError(std::string("Invalid syntax in module declaration: Wait for ','instead of '") + *it + "'");
+                break;
+            }
+            ++it;
+            skipSpace();
+            if (it == endpos || isModuleDeclarationEnd(*it, delim)) break;
+        }
+
+        const auto nameBegin = it;
+        while (it != endpos && !isModuleDeclarationEnd(*it, delim) &&
+               *it != ModuleListSeparator && *it != ModuleAssignment &&
+               *it != ModuleParametersBegin && *it != ' ' && *it != '\t')
+            ++it;
+        if (nameBegin == it) {
+            LsysSyntaxError("Invalid empty name in declaration of " +
+                           PGL_NAMESPACE_NAME::number(result.size() + 1) + " module.");
+            break;
+        }
+        result.emplace_back(std::string(nameBegin, it));
+        auto& declaration = result.back();
+        skipSpace();
+        if (it == endpos || isModuleDeclarationEnd(*it, delim)) break;
+
+        switch (moduleSuffix(*it)) {
+        case ModuleSuffix::Alias: {
+            ++it;
+            skipSpace();
+            const auto target = it;
+            while (it != endpos && (*it == '_' || isalnum(static_cast<unsigned char>(*it)))) ++it;
+            declaration.alias = true;
+            declaration.parameters.assign(target, it);
+            break;
+        }
+        case ModuleSuffix::Parameters: {
+            const auto parameters = ++it;
+            it = readPythonFragment(parameters, endpos, std::string(1, ModuleParametersEnd));
+            if (it == endpos) {
+                LsysSyntaxError("Invalid syntax in module declaration: Wait for ')'.");
+                break;
+            }
+            declaration.parameters.assign(parameters, it);
+            ++it;
+            break;
+        }
+        case ModuleSuffix::None:
+            if (*it == ModuleListSeparator) break;
+            LsysSyntaxError("Invalid syntax in module declaration: Wait for ',','=',':','(','#'.");
+            beg = it;
+            return result;
+        }
+    }
+    beg = it;
+    return result;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1713,44 +1845,43 @@ LpyParsing::parse_modlist(std::string::const_iterator& beg,
 
 /*---------------------------------------------------------------------------*/
 
-LpyParsing::ModLineDeclaration 
+LpyParsing::ModLineDeclaration
 LpyParsing::parse_moddeclaration_line(std::string::const_iterator& beg,
-								 std::string::const_iterator endpos,
-								 char delim)
+                                      std::string::const_iterator endpos,
+                                      char delim)
 {
-  ModLineDeclaration result;
-  std::string::const_iterator _it = beg;
-  result.first = LpyParsing::parse_moddeclist(_it,endpos,delim);
-  MetaModDeclaration metainfo;
-  std::string scalevalue;
-  if (_it != endpos && *_it == ':') {
-	  while (_it != endpos && *_it != delim && *_it != '\n' && *_it != '#') {
-		  ++_it;
-		  std::string key;
-		  while ((*_it == ' ' || *_it == '\t' || *_it == '\n')&& *_it != delim)++_it;
-		  std::string::const_iterator _keybeg = _it;
-		  while ((isalnum(*_it) || *_it == '_')&& *_it != delim)++_it;
-		  key = std::string(_keybeg,_it);
-		  while ((*_it == ' ' || *_it == '\t' || *_it == '\n')&& *_it != delim)++_it;
-		  if (_it == endpos || *_it == delim || *_it != '=')
-			  LsysSyntaxError("Invalid module attribute in module declaration ('=' missing).");
-		  else _it++;
-		  while ((*_it == ' ' || *_it == '\t' || *_it == '\n')&& *_it != delim)++_it;
-		  std::string::const_iterator _valbeg = _it;
-		  while(_it != endpos && *_it != ',' && *_it != '\n' && *_it != '#' && *_it != delim) {
-			  if (*_it == '[' || *_it == '(' || *_it == '{' || *_it == '\'' || *_it == '"') _it = next_token(_it,endpos);
-			  else ++_it;
-		  }
-		  if (_valbeg != _it){
-			  std::string value = std::string(_valbeg,_it);
-			  metainfo[key] = value;
-		  }
-		  else metainfo[key] = "";
-	  }
-  }
-  result.second = metainfo;
-  beg = _it;
-  return result;
+    ModLineDeclaration result;
+    auto it = beg;
+    result.first = parse_moddeclist(it, endpos, delim);
+    if (it != endpos && *it == ModuleAttributesMarker) {
+        const std::string valueDelimiters = std::string("\n#") + ModuleListSeparator + delim;
+        const auto skipSpace = [&] {
+            while (it != endpos && *it != delim && (*it == ' ' || *it == '\t' || *it == '\n'))
+                ++it;
+        };
+
+        do {
+            ++it;
+            skipSpace();
+            const auto keyBegin = it;
+            while (it != endpos && *it != delim &&
+                   (isalnum(static_cast<unsigned char>(*it)) || *it == '_'))
+                ++it;
+            const std::string key(keyBegin, it);
+            skipSpace();
+            if (it == endpos || *it == delim || *it != ModuleAssignment) {
+                LsysSyntaxError("Invalid module attribute in module declaration ('=' missing).");
+                break;
+            }
+            ++it;
+            skipSpace();
+            const auto valueBegin = it;
+            it = readPythonFragment(valueBegin, endpos, valueDelimiters);
+            result.second[key].assign(valueBegin, it);
+        } while (it != endpos && *it != delim && *it == ModuleListSeparator);
+    }
+    beg = it;
+    return result;
 }
 
 
@@ -1793,21 +1924,15 @@ std::string LpyParsing::removeSpaces(const std::string& str)
 std::vector<std::string> LpyParsing::parse_arguments(std::string::const_iterator beg,
 										 std::string::const_iterator end)
 {
-	std::vector<std::string> result;
-    std::string::const_iterator _it = beg;
-	std::string::const_iterator _it2 = _it;
-	while(_it2 != end){
-		while(_it2 != end && *_it2 != ',' && *_it2 != ')'){
-			_it2 = next_token(_it2,end);
-		}
-		if(_it != _it2){
-			/// triming name
-			std::string arg = trim(std::string(_it,_it2));
-			if(!arg.empty()) result.push_back(arg);
-		}
-		if (_it2 != end && *_it2 == ',') { ++_it2;_it = _it2; }
-	}
-	return result;
+    std::vector<std::string> result;
+    while (beg != end) {
+        const auto separator = readPythonFragment(beg, end, ",");
+        std::string argument = trim(std::string(beg, separator));
+        if (!argument.empty()) result.push_back(argument);
+        if (separator == end) break;
+        beg = separator + 1;
+    }
+    return result;
 }
 
 bool LpyParsing::isValidVariableName(std::string::const_iterator beg,

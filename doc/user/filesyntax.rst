@@ -65,10 +65,118 @@ Canvas of L-Py file
     # pure python code is again possible
 
 
+Rule headers
+============
+
+A rule header contains a predecessor and may include contexts from the
+original string (< or >) and from the string
+being produced (<< or >>). A header can use a new left context or a new right
+context. For example, A(a) < D(d) << B(b) > C(c) matches B with original left
+context A, newly produced left context D, and original right context C.
+
+The declarative grammar covers the first line of production, decomposition
+and interpretation rules, including block, arrow and static forms.
+
+.. literalinclude:: rule_header.lark
+   :language: text
+
+LPy resolves module names using the active module table and interprets the
+arguments. Angle brackets inside arguments and quoted strings belong to the
+fragment. Square brackets at the top level are LPy branch symbols.
+
+With Lark installed, run the check from the repository root.
+
+.. code-block:: console
+
+    python test/check_rule_header_grammar.py
+
+The C++ parser uses a production table generated from the context rules
+above. It uses LPy's fragment reader and keeps the table in the source tree
+so building LPy requires no Lark installation. After changing the context
+rules, run the same command with ``--write`` to regenerate the table.
+
+The check scans candidate rule lines in tracked LPy files without executing
+the models. It reports context forms, terminators and rejected candidates
+with their source locations.
+
+Rule bodies
+===========
+
+A Python rule body can contain LPy productions, module string expressions
+and context queries. The grammar describes these constructs and delegates
+their payloads to the module string and pattern readers.
+
+.. literalinclude:: rule_body.lark
+   :language: text
+
+The C++ translation table is included in the sources. With Lark installed,
+check the table with the following command or add ``--write`` to regenerate it.
+
+.. code-block:: console
+
+    python test/check_rule_body_grammar.py
+
+Module declarations
+===================
+
+A module declaration can list names, parameter names and aliases. Attributes
+after the colon apply to the whole declaration line. LPy reads nested
+expressions in attribute values with its Python fragment reader.
+
+.. literalinclude:: module_declaration.lark
+   :language: text
+
+The C++ parser shares the generated syntax between the module directive and
+the declaration list accepted by the context API. The verification script
+checks the table and scans tracked LPy sources. With Lark installed, run it
+with ``--write`` to regenerate the table.
+
+.. code-block:: console
+
+    python test/check_module_declaration_grammar.py
+
+Module strings
+==============
+
+Axioms, production successors and matching patterns share the module
+string reader. LPy resolves each module using the longest active name in
+the current module table. The grammar consumes resolved module classes
+and distinguishes ordinary arguments, module capture in a pattern (for
+example, ``$A(captured)``), and variable insertion in a production
+(``$captured``). It also describes the optional label used by the
+CPFG surface shorthand, such as ``~l(2)``.
+
+.. literalinclude:: module_string.lark
+   :language: text
+
+The generated syntax table is part of the C++ sources. With Lark
+installed, run the following command to check the table and the grammar.
+Add ``--write`` to regenerate the table.
+
+.. code-block:: console
+
+    python test/check_module_string_grammar.py
+
 .. _FileSyntax_LSystem_Specific_Declaration:
 
 L-System specific declaration
 =============================
+
+The declarative grammar describes directive keywords and the shape of their
+payloads. Section transitions and evaluation of payloads are handled by LPy.
+
+.. literalinclude:: lsystem_directives.lark
+   :language: text
+
+The C++ parser uses a table generated from this grammar. The table is checked
+into the source tree and requires no Lark installation when building or using
+LPy. With Lark installed, check the table or regenerate it after grammar
+changes with the following commands.
+
+.. code-block:: console
+
+    python test/check_directive_grammar.py
+    python test/check_directive_grammar.py --write
 
 +----------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 |**module name**             |*Declaration of module name.*                                                                                                                                                                            |

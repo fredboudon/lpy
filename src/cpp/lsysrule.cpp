@@ -491,7 +491,8 @@ LsysRule::match(const AxialTree& src,
 			   AxialTree::const_iterator& endpos,
                ArgList& args,
                AxialTree::IteratorMap* itermap,
-               eDirection direction) const 
+               eDirection direction,
+               std::shared_ptr<const AxialTree>* cyclicCache) const
 {
 
 #ifdef MULTICORE_ENABLED    
@@ -519,10 +520,42 @@ LsysRule::match(const AxialTree& src,
     pos = tmp;
   }
 
+  auto contextBegin = src.const_begin();
+  auto contextEnd = src.const_end();
+  auto endposLeft = pos;
+  if (direction == eBackward)
+      endposLeft = pos == contextEnd ? contextBegin : pos + 1;
+  auto endposRight = endpos1;
+  auto endposRightLastMatch = last_match;
+
+  std::shared_ptr<const AxialTree> cyclicSource;
+  if (!src.empty() && LsysContext::currentContext()->isCyclic()) {
+      if (cyclicCache && *cyclicCache) {
+          cyclicSource = *cyclicCache;
+      }
+      else {
+          auto repeated = std::make_shared<AxialTree>(src);
+          repeated->append(src);
+          repeated->append(src);
+          cyclicSource = repeated;
+          if (cyclicCache) *cyclicCache = cyclicSource;
+      }
+
+      // Place the predecessor in the middle copy and bound each search to
+      // one revolution, including when filters or repetitions scan the context.
+      const auto length = contextEnd - contextBegin;
+      const auto middle = cyclicSource->const_begin() + length;
+      endposLeft = middle + (endposLeft - contextBegin);
+      endposRight = middle + (endposRight - contextBegin);
+      endposRightLastMatch = middle + (last_match - contextBegin);
+      contextBegin = endposLeft - length;
+      contextEnd = endposRight + length;
+      itermap = nullptr; // The caller's bracket map indexes the original string.
+  }
+
   // left context
-  AxialTree::const_iterator endposLeft = (direction == eForward || pos == src.end() ?pos:pos+1);
   if(!__leftcontext.empty()){
-      if(!MatchingEngine::left_match(endposLeft,src.const_begin(),src.const_end(),
+      if(!MatchingEngine::left_match(endposLeft,contextBegin,contextEnd,
 		                              __leftcontext.const_rbegin(),__leftcontext.const_rend(),
 									  endposLeft,__consider,args,itermap))
 	       return false;
@@ -548,39 +581,30 @@ LsysRule::match(const AxialTree& src,
   ArgsCollector::append_args(args,args_pred);
 
   // new right context
-  AxialTree::const_iterator endposNewRight;
-  AxialTree::const_iterator endposNewRightLastMatch = last_match;
-  if(direction == eBackward && !__newrightcontext.empty()){
-	ArgList args_ncd;
-    if(!MatchingEngine::right_match(dest.const_begin(),dest.const_begin(),dest.const_end(),
-		                          __newrightcontext.const_begin(),__newrightcontext.const_end(),
-								  endposNewRightLastMatch,endposNewRight,__consider,args_ncd /*, itermap*/)) return false;
-    							  // last_match,endpos2,args_ncd)) return false;
-	ArgsCollector::append_args(args,args_ncd);
+  if (direction == eBackward && !__newrightcontext.empty()) {
+    ArgList args_ncd;
+    AxialTree::const_iterator endposNewRight;
+    // The predecessor is in src. Carry its scale into dest without its iterator.
+    AxialTree::const_iterator endposNewRightLastMatch = dest.const_end();
+    const int predecessor_scale = last_match == src.const_end() ? -1 : last_match->scale();
+    if (!MatchingEngine::right_match(dest.const_begin(), dest.const_begin(), dest.const_end(),
+                                     __newrightcontext.const_begin(), __newrightcontext.const_end(),
+                                     endposNewRightLastMatch, endposNewRight, __consider, args_ncd,
+                                     nullptr, predecessor_scale)) return false;
+    ArgsCollector::append_args(args, args_ncd);
   }
 
   // right context
-  AxialTree::const_iterator endposRight = endpos1;
-  AxialTree::const_iterator endposRightLastMatch = last_match;
   if(!__rightcontext.empty()){
 	ArgList args_cd;
-    if(!MatchingEngine::right_match(endposRight,src.const_begin(),src.const_end(),
+    if(!MatchingEngine::right_match(endposRight,contextBegin,contextEnd,
 		                          __rightcontext.const_begin(),__rightcontext.const_end(),
 								  endposRightLastMatch,endposRight,__consider,args_cd, itermap))return false;
 	ArgsCollector::append_args(args,args_cd);
   }
-  const_cast<LsysRule *>(this)->__lstringmatcher = LstringMatcherPtr(new LstringMatcher(src.const_begin(),	
-					   src.const_end(),
-					   endposLeft,
-					   // endposNewLeft,
-					   endposRight,
-					   endposRightLastMatch,
-					   // endposNewRight,
-					   // endposRightLastMatch
-                       __consider,
-                       itermap
-					   ));
-
+  const_cast<LsysRule *>(this)->__lstringmatcher = LstringMatcherPtr(
+      new LstringMatcher(contextBegin, contextEnd, endposLeft, endposRight,
+                         endposRightLastMatch, __consider, itermap, cyclicSource));
 
   if (direction == eForward) endpos = endpos1;
   else                       endpos = pos;
@@ -617,11 +641,12 @@ LsysRule::applyTo( AxialTree& dest,
 
 AxialTree
 LsysRule::process( const AxialTree& src ) const {
+  std::shared_ptr<const AxialTree> cyclicCache;
   AxialTree dest;
   AxialTree::const_iterator _it = src.begin();
   while(_it != src.end()){
 	ArgList args;
-	if(!match(src,_it,dest,_it,args)){
+	if(!match(src,_it,dest,_it,args,nullptr,eForward,&cyclicCache)){
 	  dest.push_back(_it);
 	  ++_it;
 	}
